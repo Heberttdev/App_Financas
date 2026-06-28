@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "293588515495",
+    "firebase_url": "https://financas-f371a-default-rtdb.firebaseio.com",
+    "project_id": "financas-f371a",
+    "storage_bucket": "financas-f371a.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:293588515495:android:3e7431268aad61575f7982",
+        "android_client_info": {
+          "package_name": "com.financas.dividas"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "293588515495-8f33jaoe28c99lhq83m181n9c7n9k0su.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.financas.dividas",
+            "certificate_hash": "9a6a39e87d1d0380f86361812f50ef6872f2c0da"
+          }
+        },
+        {
+          "client_id": "293588515495-0q7dlmm07enem12fgbb4m2uihvp91miu.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDy4BqZZcRTglDzmCN58jXAXQofDpgI5GY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "293588515495-0q7dlmm07enem12fgbb4m2uihvp91miu.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

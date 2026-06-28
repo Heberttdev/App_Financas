@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Página não encontrada - Gerenciador de Dívidas</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            background: #f5f7fb;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            text-align: center;
+            padding: 20px;
+        }
+        .container {
+            background: white;
+            border-radius: 20px;
+            padding: 40px 30px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+            max-width: 440px;
+            width: 100%;
+        }
+        .emoji { font-size: 80px; margin-bottom: 20px; }
+        h1 { font-size: 24px; color: #1a1a1a; margin-bottom: 10px; }
+        p { color: #666; font-size: 16px; margin-bottom: 25px; line-height: 1.5; }
+        .btn {
+            display: inline-block;
+            background: #1a73e8;
+            color: white;
+            text-decoration: none;
+            padding: 14px 30px;
+            border-radius: 10px;
+            font-weight: bold;
+            font-size: 16px;
+            transition: background 0.2s;
+            margin: 5px;
+        }
+        .btn:hover { background: #1557b0; }
+        .btn-whatsapp {
+            background: #25D366;
+            color: white;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .btn-whatsapp:hover { background: #1fad50; }
+        .divider {
+            color: #999;
+            font-size: 14px;
+            margin: 15px 0;
+        }
+        .footer-text {
+            font-size: 13px;
+            color: #999;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="emoji">🔍</div>
+        <h1>Página não encontrada</h1>
+        <p>A página que você procura não existe ou foi movida. Verifique o endereço ou volte para o início.</p>
+        
+        <a href="/" class="btn">🏠 Voltar para o App</a>
+        
+        <div class="divider">— ou —</div>
+        
+        <a href="https://wa.me/5581988917076?text=Olá!%20Preciso%20de%20ajuda%20com%20o%20Gerenciador%20de%20Dívidas." 
+           class="btn btn-whatsapp" 
+           target="_blank">
+            💬 Falar com o Suporte
+        </a>
+        
+        <div class="footer-text">
+            Desenvolvido por <strong>Hebert Carlos</strong><br>
+            WhatsApp: (81) 9 8891-7076
+        </div>
+    </div>
+</body>
+</html>

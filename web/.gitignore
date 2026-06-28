@@ -1,0 +1,29 @@
+# Firebase
+.firebase/
+firebase-debug.log
+
+# Node
+node_modules/
+
+# Gradle/Android
+gradle/
+gradlew
+gradlew.bat
+build/
+.gradle/
+local.properties
+
+# Arquivos executáveis
+*.exe
+*.bat
+*.jar
+*.apk
+*.aab
+
+# Pastas temporárias
+.well-known/
+app/
+
+# Sistema
+Thumbs.db
+.DS_Store

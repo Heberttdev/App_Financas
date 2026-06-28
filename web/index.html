@@ -1,0 +1,476 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <link
+      href="https://fonts.googleapis.com/icon?family=Material+Icons"
+      rel="stylesheet"
+    />
+    <link rel="icon" type="image/png" sizes="512x512" href="/icon.png" />
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes"
+    />
+    <title>Gerenciador de Dívidas</title>
+
+      <link rel="stylesheet" href="css/style.css" />
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet" />
+
+    <meta name="theme-color" content="#1a73e8" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Dívidas" />
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+  </head>
+  <body>
+    <div class="app-container" id="appContainer">
+      <div class="loading-overlay" id="loadingOverlay">
+        <div class="spinner"></div>
+        <p id="loadingText">Conectando...</p>
+      </div>
+
+      <div class="modal-overlay" id="modalRecuperacao" style="display: none">
+        <div class="modal">
+          <h2>🔑 Recuperar Senha</h2>
+          <div class="form-group">
+            <label>Email cadastrado</label><input type="email" id="recEmail" />
+          </div>
+          <div id="recErro" class="erro-msg"></div>
+          <div id="recSucesso" class="sucesso-msg"></div>
+          <div style="display: flex; gap: 10px; margin-top: 15px">
+            <button class="btn" id="btnRecuperar" onclick="recuperarSenha()">
+              <span class="btn-spinner"></span> Enviar
+            </button>
+            <button
+              class="btn-outline btn-sm"
+              onclick="fecharModalRecuperacao()"
+            >
+              Cancelar
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div id="authScreen" class="screen active">
+        <div style="text-align: center; margin-top: 30px">
+          <img
+            src="/logo.png"
+            alt="Logo"
+            style="
+              width: 100px;
+              height: 100px;
+              border-radius: 25px;
+              margin-bottom: 10px;
+              box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            "
+            onerror="
+              this.style.display = 'none';
+              this.nextElementSibling.style.display = 'block';
+            "
+          />
+          <div style="font-size: 80px; margin-bottom: 10px; display: none">
+            💰
+          </div>
+          <h2 style="font-size: 28px; color: var(--text); margin-bottom: 5px">
+            Gerenciador de Dívidas
+          </h2>
+          <p style="color: var(--text-secondary); font-size: 15px">
+            Controle suas finanças com inteligência
+          </p>
+        </div>
+
+        <div id="loginForm" class="auth-form" style="margin-top: 20px">
+          <button
+            class="btn btn-google"
+            onclick="window.loginComGoogle()"
+            style="
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              gap: 10px;
+            "
+          >
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"
+                fill="#4285F4"
+              />
+              <path
+                d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                fill="#34A853"
+              />
+              <path
+                d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
+                fill="#FBBC05"
+              />
+              <path
+                d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+                fill="#EA4335"
+              />
+            </svg>
+            Entrar com Google
+          </button>
+
+          <div class="divider-text">ou com email</div>
+
+          <input
+            type="email"
+            id="loginEmail"
+            placeholder="Email"
+            autocomplete="email"
+          />
+          <input type="password" id="loginSenha" placeholder="Senha" />
+          <div id="loginErro" class="erro-msg"></div>
+          <button class="btn" id="btnLogin" onclick="login()">
+            <span class="btn-spinner"></span> Entrar
+          </button>
+          <span class="link" onclick="toggleAuthForm('cadastro')"
+            >Criar conta</span
+          >
+          <span
+            class="link"
+            onclick="abrirModalRecuperacao()"
+            style="font-size: 13px"
+            >Esqueci minha senha</span
+          >
+        </div>
+        <div id="cadastroForm" class="auth-form" style="display: none">
+          <input type="text" id="cadNome" placeholder="Nome" />
+          <input
+            type="email"
+            id="cadEmail"
+            placeholder="Email"
+            autocomplete="email"
+          />
+          <input
+            type="password"
+            id="cadSenha"
+            placeholder="Senha (mínimo 6 caracteres)"
+          />
+          <div id="cadErro" class="erro-msg"></div>
+          <button class="btn" id="btnCadastrar" onclick="cadastrar()">
+            <span class="btn-spinner"></span> Cadastrar
+          </button>
+          <span class="link" onclick="toggleAuthForm('login')"
+            >Já tenho conta</span
+          >
+        </div>
+      </div>
+
+      <div id="mainScreen" class="screen">
+        <div class="header">
+          <h1>Dashboard</h1>
+          <div class="header-actions">
+            <button class="tema-toggle" onclick="alternarTema()">🌙</button>
+            <button class="logout-btn" onclick="logout()">Sair</button>
+          </div>
+        </div>
+        <div class="user-info" style="margin-bottom: 15px">
+          <span id="nomeUsuario" style="color: var(--text-secondary)"></span>
+        </div>
+        <div class="resumo-cards" id="resumoCards"></div>
+        <div class="card-proxima" id="proximaContaCard"></div>
+
+        <div class="card-progresso" id="progressoGeral"></div>
+        <div id="proximosVencimentosCard" class="card-proxima">
+          <h4>
+            <span class="material-icons">event</span>
+            Próximos Vencimentos
+          </h4>
+
+          <div id="listaProximosVencimentos">Carregando...</div>
+        </div>
+
+        <div id="areaDividas" style="display: none"></div>
+      </div>
+
+      <div id="dividasScreen" class="screen">
+        <div class="header">
+          <h1>
+            <span class="material-icons"
+              ><span class="material-icons">credit_card</span></span
+            >
+            Minhas Dívidas
+          </h1>
+
+          <button class="btn-outline btn-sm" onclick="navegar('dashboard')">
+            ← Voltar
+          </button>
+        </div>
+        <div class="busca-container">
+          <input
+            type="text"
+            id="buscaDivida"
+            placeholder="🔍 Buscar dívida..."
+            oninput="atualizarDashboard()"
+          />
+        </div>
+
+        <div id="resumoDividas"></div>
+
+        <div class="filtros-dividas">
+          <button
+            class="filtro-divida ativo"
+            onclick="filtrarDividas('todas', this)"
+          >
+            📋 Todas
+          </button>
+
+          <button
+            class="filtro-divida"
+            onclick="filtrarDividas('vencidas', this)"
+          >
+            🔴 Vencidas
+          </button>
+
+          <button
+            class="filtro-divida"
+            onclick="filtrarDividas('proximas', this)"
+          >
+            🟡 Vencendo
+          </button>
+
+          <button
+            class="filtro-divida"
+            onclick="filtrarDividas('quitadas', this)"
+          >
+            🟢 Quitadas
+          </button>
+        </div>
+
+        <div class="lista-dividas" id="listaDividas"></div>
+      </div>
+
+      <div id="adicionarScreen" class="screen">
+        <div class="header">
+          <h1>➕ Nova Dívida</h1>
+          <button class="btn-outline btn-sm" onclick="voltarParaDashboard()">
+            ← Voltar
+          </button>
+        </div>
+        <div class="form-group">
+          <label>Nome</label
+          ><input
+            type="text"
+            id="nomeDivida"
+            placeholder="Ex: Cartão de Crédito"
+          />
+        </div>
+        <div class="form-group">
+          <label>Categoria</label
+          ><select id="categoriaDivida">
+            <option value="cartao">💳 Cartão</option>
+            <option value="emprestimo">🏦 Empréstimo</option>
+            <option value="boleto">📄 Boleto</option>
+            <option value="assinatura">🔄 Assinatura</option>
+            <option value="educacao">🎓 Educação</option>
+            <option value="saude">🏥 Saúde</option>
+            <option value="moradia">🏠 Moradia</option>
+            <option value="transporte">🚗 Transporte</option>
+            <option value="alimentacao">🍔 Alimentação</option>
+            <option value="lazer">🎮 Lazer</option>
+            <option value="imposto">🧾 Impostos</option>
+            <option value="outros">📌 Outros</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Valor Total (R$)</label
+          ><input
+            type="number"
+            id="valorTotal"
+            step="0.01"
+            oninput="calcularValorParcela()"
+          />
+        </div>
+        <div class="form-group checkbox-group">
+          <input
+            type="checkbox"
+            id="parceladaCheck"
+            onchange="toggleParcelamento()"
+          /><label>Parcelada</label>
+        </div>
+        <div id="parcelamentoFields" style="display: none">
+          <div class="form-group">
+            <label>Nº Parcelas</label
+            ><input
+              type="number"
+              id="numParcelas"
+              min="2"
+              value="2"
+              oninput="calcularValorParcela()"
+            />
+          </div>
+          <div class="form-group">
+            <label>Valor Parcela (R$)</label
+            ><input type="number" id="valorParcela" readonly />
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Data 1º Vencimento</label
+          ><input type="date" id="dataVencimento" />
+        </div>
+        <div class="form-group">
+          <label>Observações</label><textarea id="observacaoDivida"></textarea>
+        </div>
+        <div class="form-group">
+          <label>Status</label
+          ><select id="statusDivida">
+            <option value="pendente">Pendente</option>
+            <option value="pago">Pago (todas)</option>
+          </select>
+        </div>
+        <button class="btn" id="btnSalvarDivida" onclick="adicionarDivida()">
+          <span class="btn-spinner"></span> Salvar
+        </button>
+      </div>
+
+      <div id="relatoriosScreen" class="screen">
+        <div class="header">
+          <h1>📈 Relatórios</h1>
+          <button class="btn-outline btn-sm" onclick="navegar('dashboard')">
+            ← Voltar
+          </button>
+        </div>
+
+        <div class="filtros-relatorio">
+          <span
+            class="filtro-btn ativo"
+            data-filtro="todas"
+            onclick="filtrarRelatorio('todas', this)"
+            >Todas</span
+          >
+          <span
+            class="filtro-btn"
+            data-filtro="pendente"
+            onclick="filtrarRelatorio('pendente', this)"
+            >Pendentes</span
+          >
+          <span
+            class="filtro-btn"
+            data-filtro="pago"
+            onclick="filtrarRelatorio('pago', this)"
+            >Pagas</span
+          >
+        </div>
+
+        <div class="filtro-periodo">
+          <label>Período:</label
+          ><input
+            type="month"
+            id="filtroMes"
+            onchange="aplicarFiltroPeriodo()"
+          />
+          <button class="btn-sm btn-outline" onclick="limparFiltroPeriodo()">
+            Limpar
+          </button>
+        </div>
+
+        <div class="resumo-cards" id="resumoRelatorio">
+          <div class="card">
+            <h3>
+              <span class="material-icons">payments</span>
+              Pendente
+            </h3>
+            <div class="valor" id="relPendente">R$ 0,00</div>
+          </div>
+
+          <div class="card">
+            <h3>
+              <span class="material-icons">paid</span>
+              Pago
+            </h3>
+            <div class="valor" id="relPago">R$ 0,00</div>
+          </div>
+
+          <div class="card">
+            <h3>
+              <span class="material-icons">inventory_2</span>
+              Parcelas
+            </h3>
+            <div class="valor" id="relParcelas">0</div>
+          </div>
+
+          <div class="card">
+            <h3>
+              <span class="material-icons">task_alt</span>
+              Quitação
+            </h3>
+            <div class="valor" id="relPercentual">0%</div>
+          </div>
+        </div>
+        <div class="card-progresso-geral">
+          <h3>
+            <span class="material-icons">trending_up</span>
+            Evolução da Quitação
+          </h3>
+
+          <div class="progresso-barra">
+            <div
+              class="progresso-preenchimento"
+              id="barraQuitacao"
+              style="width: 0%"
+            ></div>
+          </div>
+
+          <div id="textoQuitacao">0% quitado</div>
+        </div>
+        <div id="resumoFinanceiroCard" class="card-proxima">
+          <h3>
+            <span class="material-icons">account_balance_wallet</span>
+            Resumo Financeiro
+          </h3>
+
+          <div id="resumoFinanceiroConteudo"></div>
+        </div>
+
+        <div class="grafico-container">
+          <canvas id="graficoDividas"></canvas>
+        </div>
+
+        <div id="rankingDividas"></div>
+
+        <h3>Detalhamento</h3>
+
+        <div class="lista-dividas" id="listaRelatorio"></div>
+      </div>
+
+     <div class="nav-bottom" style="display: none;">
+  <div class="nav-item active" data-tela="dashboard" onclick="navegar('dashboard')">
+    <span class="material-icons">dashboard</span>
+    Dashboard
+  </div>
+  <div class="nav-item" data-tela="dividas" onclick="navegar('dividas')">
+    <span class="material-icons">credit_card</span>
+    Dívidas
+  </div>
+  <div class="nav-item" data-tela="adicionar" onclick="abrirNovaDivida()">
+    <span class="material-icons">add_circle</span>
+    Nova
+  </div>
+  <div class="nav-item" data-tela="relatorios" onclick="navegar('relatorios')">
+    <span class="material-icons">analytics</span>
+    Relatórios
+  </div>
+</div>
+  
+     <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+    
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    
+    <!-- ✅ APP JS EXTERNO -->
+    <script src="js/app.js"></script>
+  </body>
+</html>
