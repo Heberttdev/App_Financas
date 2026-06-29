@@ -1,11 +1,6 @@
 <!doctype html>
 <html lang="pt-BR">
   <head>
-    <link
-      href="https://fonts.googleapis.com/icon?family=Material+Icons"
-      rel="stylesheet"
-    />
-    <link rel="icon" type="image/png" sizes="512x512" href="/icon.png" />
     <meta charset="UTF-8" />
     <meta
       name="viewport"
@@ -13,14 +8,21 @@
     />
     <title>Gerenciador de Dívidas</title>
 
-      <link rel="stylesheet" href="css/style.css" />
-    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="icon" type="image/png" sizes="512x512" href="/icon.png" />
+    <link rel="stylesheet" href="css/style.css" />
 
-    <meta name="theme-color" content="#1a73e8" />
+    <meta name="theme-color" content="#5b6cff" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-title" content="Dívidas" />
 
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
@@ -35,7 +37,7 @@
 
       <div class="modal-overlay" id="modalRecuperacao" style="display: none">
         <div class="modal">
-          <h2>🔑 Recuperar Senha</h2>
+          <h2><i data-lucide="key-round" class="icon"></i> Recuperar Senha</h2>
           <div class="form-group">
             <label>Email cadastrado</label><input type="email" id="recEmail" />
           </div>
@@ -48,6 +50,7 @@
             <button
               class="btn-outline btn-sm"
               onclick="fecharModalRecuperacao()"
+              style="width: auto; padding: 0 16px"
             >
               Cancelar
             </button>
@@ -69,11 +72,23 @@
             "
             onerror="
               this.style.display = 'none';
-              this.nextElementSibling.style.display = 'block';
+              this.nextElementSibling.style.display = 'flex';
             "
           />
-          <div style="font-size: 80px; margin-bottom: 10px; display: none">
-            💰
+          <div
+            style="
+              width: 100px;
+              height: 100px;
+              border-radius: 25px;
+              margin: 0 auto 10px;
+              display: none;
+              align-items: center;
+              justify-content: center;
+              background: var(--gradient);
+              color: white;
+            "
+          >
+            <i data-lucide="wallet" style="width: 48px; height: 48px"></i>
           </div>
           <h2 style="font-size: 28px; color: var(--text); margin-bottom: 5px">
             Gerenciador de Dívidas
@@ -170,8 +185,12 @@
         <div class="header">
           <h1>Dashboard</h1>
           <div class="header-actions">
-            <button class="tema-toggle" onclick="alternarTema()">🌙</button>
-            <button class="logout-btn" onclick="logout()">Sair</button>
+            <button class="tema-toggle" onclick="alternarTema()">
+              <i data-lucide="moon" class="icon icon-sm"></i>
+            </button>
+            <button class="logout-btn" onclick="logout()">
+              <i data-lucide="log-out" class="icon icon-sm"></i> Sair
+            </button>
           </div>
         </div>
         <div class="user-info" style="margin-bottom: 15px">
@@ -183,7 +202,7 @@
         <div class="card-progresso" id="progressoGeral"></div>
         <div id="proximosVencimentosCard" class="card-proxima">
           <h4>
-            <span class="material-icons">event</span>
+            <i data-lucide="calendar-clock" class="icon icon-sm"></i>
             Próximos Vencimentos
           </h4>
 
@@ -196,21 +215,20 @@
       <div id="dividasScreen" class="screen">
         <div class="header">
           <h1>
-            <span class="material-icons"
-              ><span class="material-icons">credit_card</span></span
-            >
+            <i data-lucide="credit-card" class="icon"></i>
             Minhas Dívidas
           </h1>
 
           <button class="btn-outline btn-sm" onclick="navegar('dashboard')">
-            ← Voltar
+            <i data-lucide="arrow-left" class="icon icon-sm"></i>
           </button>
         </div>
         <div class="busca-container">
+          <i data-lucide="search" class="icon icon-sm"></i>
           <input
             type="text"
             id="buscaDivida"
-            placeholder="🔍 Buscar dívida..."
+            placeholder="Buscar dívida..."
             oninput="atualizarDashboard()"
           />
         </div>
@@ -222,28 +240,28 @@
             class="filtro-divida ativo"
             onclick="filtrarDividas('todas', this)"
           >
-            📋 Todas
+            <i data-lucide="list" class="icon icon-sm"></i> Todas
           </button>
 
           <button
             class="filtro-divida"
             onclick="filtrarDividas('vencidas', this)"
           >
-            🔴 Vencidas
+            <i data-lucide="alert-circle" class="icon icon-sm"></i> Vencidas
           </button>
 
           <button
             class="filtro-divida"
             onclick="filtrarDividas('proximas', this)"
           >
-            🟡 Vencendo
+            <i data-lucide="clock" class="icon icon-sm"></i> Vencendo
           </button>
 
           <button
             class="filtro-divida"
             onclick="filtrarDividas('quitadas', this)"
           >
-            🟢 Quitadas
+            <i data-lucide="check-circle" class="icon icon-sm"></i> Quitadas
           </button>
         </div>
 
@@ -252,9 +270,12 @@
 
       <div id="adicionarScreen" class="screen">
         <div class="header">
-          <h1>➕ Nova Dívida</h1>
+          <h1>
+            <i data-lucide="plus-circle" class="icon"></i>
+            Nova Dívida
+          </h1>
           <button class="btn-outline btn-sm" onclick="voltarParaDashboard()">
-            ← Voltar
+            <i data-lucide="arrow-left" class="icon icon-sm"></i>
           </button>
         </div>
         <div class="form-group">
@@ -268,18 +289,18 @@
         <div class="form-group">
           <label>Categoria</label
           ><select id="categoriaDivida">
-            <option value="cartao">💳 Cartão</option>
-            <option value="emprestimo">🏦 Empréstimo</option>
-            <option value="boleto">📄 Boleto</option>
-            <option value="assinatura">🔄 Assinatura</option>
-            <option value="educacao">🎓 Educação</option>
-            <option value="saude">🏥 Saúde</option>
-            <option value="moradia">🏠 Moradia</option>
-            <option value="transporte">🚗 Transporte</option>
-            <option value="alimentacao">🍔 Alimentação</option>
-            <option value="lazer">🎮 Lazer</option>
-            <option value="imposto">🧾 Impostos</option>
-            <option value="outros">📌 Outros</option>
+            <option value="cartao">Cartão</option>
+            <option value="emprestimo">Empréstimo</option>
+            <option value="boleto">Boleto</option>
+            <option value="assinatura">Assinatura</option>
+            <option value="educacao">Educação</option>
+            <option value="saude">Saúde</option>
+            <option value="moradia">Moradia</option>
+            <option value="transporte">Transporte</option>
+            <option value="alimentacao">Alimentação</option>
+            <option value="lazer">Lazer</option>
+            <option value="imposto">Impostos</option>
+            <option value="outros">Outros</option>
           </select>
         </div>
         <div class="form-group">
@@ -335,9 +356,12 @@
 
       <div id="relatoriosScreen" class="screen">
         <div class="header">
-          <h1>📈 Relatórios</h1>
+          <h1>
+            <i data-lucide="line-chart" class="icon"></i>
+            Relatórios
+          </h1>
           <button class="btn-outline btn-sm" onclick="navegar('dashboard')">
-            ← Voltar
+            <i data-lucide="arrow-left" class="icon icon-sm"></i>
           </button>
         </div>
 
@@ -369,7 +393,7 @@
             id="filtroMes"
             onchange="aplicarFiltroPeriodo()"
           />
-          <button class="btn-sm btn-outline" onclick="limparFiltroPeriodo()">
+          <button class="btn-sm btn-outline" onclick="limparFiltroPeriodo()" style="width: auto; padding: 0 14px">
             Limpar
           </button>
         </div>
@@ -377,7 +401,7 @@
         <div class="resumo-cards" id="resumoRelatorio">
           <div class="card">
             <h3>
-              <span class="material-icons">payments</span>
+              <i data-lucide="banknote" class="icon icon-sm"></i>
               Pendente
             </h3>
             <div class="valor" id="relPendente">R$ 0,00</div>
@@ -385,7 +409,7 @@
 
           <div class="card">
             <h3>
-              <span class="material-icons">paid</span>
+              <i data-lucide="badge-check" class="icon icon-sm"></i>
               Pago
             </h3>
             <div class="valor" id="relPago">R$ 0,00</div>
@@ -393,7 +417,7 @@
 
           <div class="card">
             <h3>
-              <span class="material-icons">inventory_2</span>
+              <i data-lucide="layers" class="icon icon-sm"></i>
               Parcelas
             </h3>
             <div class="valor" id="relParcelas">0</div>
@@ -401,7 +425,7 @@
 
           <div class="card">
             <h3>
-              <span class="material-icons">task_alt</span>
+              <i data-lucide="target" class="icon icon-sm"></i>
               Quitação
             </h3>
             <div class="valor" id="relPercentual">0%</div>
@@ -409,7 +433,7 @@
         </div>
         <div class="card-progresso-geral">
           <h3>
-            <span class="material-icons">trending_up</span>
+            <i data-lucide="trending-up" class="icon icon-sm"></i>
             Evolução da Quitação
           </h3>
 
@@ -425,7 +449,7 @@
         </div>
         <div id="resumoFinanceiroCard" class="card-proxima">
           <h3>
-            <span class="material-icons">account_balance_wallet</span>
+            <i data-lucide="wallet" class="icon icon-sm"></i>
             Resumo Financeiro
           </h3>
 
@@ -438,39 +462,61 @@
 
         <div id="rankingDividas"></div>
 
-        <h3>Detalhamento</h3>
+        <h3 style="display: flex; align-items: center; gap: 6px; margin: 10px 0">
+          <i data-lucide="list-checks" class="icon icon-sm"></i> Detalhamento
+        </h3>
 
         <div class="lista-dividas" id="listaRelatorio"></div>
       </div>
 
-     <div class="nav-bottom" style="display: none;">
-  <div class="nav-item active" data-tela="dashboard" onclick="navegar('dashboard')">
-    <span class="material-icons">dashboard</span>
-    Dashboard
-  </div>
-  <div class="nav-item" data-tela="dividas" onclick="navegar('dividas')">
-    <span class="material-icons">credit_card</span>
-    Dívidas
-  </div>
-  <div class="nav-item" data-tela="adicionar" onclick="abrirNovaDivida()">
-    <span class="material-icons">add_circle</span>
-    Nova
-  </div>
-  <div class="nav-item" data-tela="relatorios" onclick="navegar('relatorios')">
-    <span class="material-icons">analytics</span>
-    Relatórios
-  </div>
-</div>
-  
-     <!-- Firebase SDKs -->
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
-    
-    <!-- Chart.js -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-    
-    <!-- ✅ APP JS EXTERNO -->
-    <script src="js/app.js"></script>
+      <div class="nav-bottom">
+        <div
+          class="nav-item active"
+          data-tela="dashboard"
+          onclick="navegar('dashboard')"
+        >
+          <i data-lucide="layout-dashboard" class="icon"></i>
+          Dashboard
+        </div>
+        <div
+          class="nav-item"
+          data-tela="dividas"
+          onclick="navegar('dividas')"
+        >
+          <i data-lucide="credit-card" class="icon"></i>
+          Dívidas
+        </div>
+        <div
+          class="nav-item"
+          data-tela="adicionar"
+          onclick="abrirNovaDivida()"
+        >
+          <i data-lucide="plus-circle" class="icon"></i>
+          Nova
+        </div>
+        <div
+          class="nav-item"
+          data-tela="relatorios"
+          onclick="navegar('relatorios')"
+        >
+          <i data-lucide="bar-chart-3" class="icon"></i>
+          Relatórios
+        </div>
+      </div>
+
+      <!-- Firebase SDKs -->
+      <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+      <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+      <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+
+      <!-- Chart.js -->
+      <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+      <!-- App JS -->
+      <script src="js/app.js"></script>
+      <script>
+        lucide.createIcons();
+      </script>
+    </div>
   </body>
 </html>

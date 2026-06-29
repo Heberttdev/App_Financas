@@ -402,17 +402,22 @@
             "mainScreen",
             "adicionarScreen",
             "relatoriosScreen",
+            "dividasScreen",
           ].forEach((id) => {
-            document.getElementById(id).classList.remove("active");
+            const el = document.getElementById(id);
+            if (el) el.classList.remove("active");
           });
           document.getElementById("authScreen").classList.add("active");
+          const navBottom = document.querySelector(".nav-bottom");
+          if (navBottom) navBottom.style.display = "none";
         }
+        window.mostrarTelaAuth = mostrarTelaAuth;
 
         function mostrarApp(user) {
-          console.log("📱 Mostrando app para:", user.email);
+          console.log("Mostrando app para:", user.email);
 
           if (!user || !user.uid) {
-            console.error("❌ Usuário inválido!");
+            console.error("Usuário inválido!");
             return;
           }
 
@@ -432,15 +437,16 @@
           const navBottom = document.querySelector(".nav-bottom");
           if (navBottom) navBottom.style.display = "flex";
 
-          // ⏳ DELAY PARA SINCronIZAR
+          // delay para a sessão do Firebase sincronizar antes de buscar dados
           setTimeout(() => {
-            console.log("⏳ Carregando dados do Firebase para UID:", user.uid);
+            console.log("Carregando dados do Firebase para UID:", user.uid);
             carregarDividasRealtime();
           }, 800);
 
           // Navegar para dashboard
           window.navegar("dashboard");
         }
+        window.mostrarApp = mostrarApp;
 
         function verificarParcelasVencendo() {
           if (!window.Android) return;
@@ -779,22 +785,23 @@
         // Dashboard
         function getCatBadge(c) {
           const m = {
-            cartao: ["💳 Cartão", "categoria-cartao"],
-            emprestimo: ["🏦 Empréstimo", "categoria-emprestimo"],
-            boleto: ["📄 Boleto", "categoria-boleto"],
-            assinatura: ["🔄 Assinatura", "categoria-assinatura"],
-            educacao: ["🎓 Educação", "categoria-educacao"],
-            saude: ["🏥 Saúde", "categoria-saude"],
-            moradia: ["🏠 Moradia", "categoria-moradia"],
-            transporte: ["🚗 Transporte", "categoria-transporte"],
-            alimentacao: ["🍔 Alimentação", "categoria-alimentacao"],
-            lazer: ["🎮 Lazer", "categoria-lazer"],
-            outros: ["📌 Outros", "categoria-outros"],
+            cartao: ["credit-card", "Cartão", "categoria-cartao"],
+            emprestimo: ["landmark", "Empréstimo", "categoria-emprestimo"],
+            boleto: ["file-text", "Boleto", "categoria-boleto"],
+            assinatura: ["refresh-cw", "Assinatura", "categoria-assinatura"],
+            educacao: ["graduation-cap", "Educação", "categoria-educacao"],
+            saude: ["heart-pulse", "Saúde", "categoria-saude"],
+            moradia: ["home", "Moradia", "categoria-moradia"],
+            transporte: ["car", "Transporte", "categoria-transporte"],
+            alimentacao: ["utensils", "Alimentação", "categoria-alimentacao"],
+            lazer: ["gamepad-2", "Lazer", "categoria-lazer"],
+            imposto: ["receipt", "Impostos", "categoria-imposto"],
+            outros: ["bookmark", "Outros", "categoria-outros"],
           };
 
-          const [nm, cl] = m[c] || m["outros"];
+          const [icon, nm, cl] = m[c] || m["outros"];
 
-          return `<span class="categoria-badge ${cl}">${nm}</span>`;
+          return `<span class="categoria-badge ${cl}"><i data-lucide="${icon}" class="icon icon-sm"></i>${nm}</span>`;
         }
 
         function ordenarDividas(l) {
@@ -846,13 +853,13 @@
 
           const diff = Math.ceil((venc - hoje) / (1000 * 60 * 60 * 24));
 
-          if (diff < 0) return `🔴 Vencida há ${Math.abs(diff)} dia(s)`;
+          if (diff < 0) return `Vencida há ${Math.abs(diff)} dia(s)`;
 
-          if (diff === 0) return "⚠️ Vence hoje";
+          if (diff === 0) return "Vence hoje";
 
-          if (diff === 1) return "🟡 Vence amanhã";
+          if (diff === 1) return "Vence amanhã";
 
-          return `⏳ Faltam ${diff} dias`;
+          return `Faltam ${diff} dias`;
         }
 
         // filtro de dívidas
@@ -874,6 +881,7 @@
           let alerta = 0;
           let ok = 0;
 
+          let parcelasVencidas = 0;
           let valorVencido = 0;
 
           dividas.forEach((d) => {
@@ -900,15 +908,16 @@
             resumo.innerHTML = `
         <div class="card" style="margin-bottom:15px">
            <h3>
-  <span class="material-icons">analytics</span>
+  <i data-lucide="bar-chart-2" class="icon icon-sm"></i>
   Resumo
 </h3>
 
-            🔴 ${vencidas} vencidas<br>
-            🟡 ${alerta} próximas do vencimento<br>
-            🟢 ${ok} em dia
+            ${vencidas} vencidas<br>
+            ${alerta} próximas do vencimento<br>
+            ${ok} em dia
         </div>
     `;
+            if (window.lucide) lucide.createIcons();
           }
 
           if (!dividas) dividas = [];
@@ -929,30 +938,8 @@
                 );
 
                 if (dias < 0) {
-                  vencidas++;
+                  parcelasVencidas++;
                   valorVencido += p.valor || 0;
-                }
-                const alerta = document.getElementById("alertaDividas");
-
-                if (alerta) {
-                  if (vencidas > 0) {
-                    alerta.innerHTML = `
-            <div class="card-alerta">
-                <h3>🔥 Atenção</h3>
-
-                <p>${vencidas} parcela(s) vencida(s)</p>
-
-                <p>
-                    <strong>
-                        ${formatarMoeda(valorVencido)}
-                    </strong>
-                    em atraso
-                </p>
-            </div>
-        `;
-                  } else {
-                    alerta.innerHTML = "";
-                  }
                 }
               }
 
@@ -964,6 +951,30 @@
             });
           });
 
+          const alertaEl = document.getElementById("alertaDividas");
+
+          if (alertaEl) {
+            if (parcelasVencidas > 0) {
+              alertaEl.innerHTML = `
+            <div class="card-alerta">
+                <h3><i data-lucide="flame" class="icon icon-sm"></i> Atenção</h3>
+
+                <p>${parcelasVencidas} parcela(s) vencida(s)</p>
+
+                <p>
+                    <strong>
+                        ${formatarMoeda(valorVencido)}
+                    </strong>
+                    em atraso
+                </p>
+            </div>
+        `;
+              if (window.lucide) lucide.createIcons();
+            } else {
+              alertaEl.innerHTML = "";
+            }
+          }
+
           const maiorDivida = [...dividas].sort(
             (a, b) => (b.valorTotal || 0) - (a.valorTotal || 0),
           )[0];
@@ -972,17 +983,17 @@
     <div style="margin-top:10px">
 
         <div style="margin-bottom:8px">
-            💰 Total: <strong>${formatarMoeda(tg)}</strong>
+            Total: <strong>${formatarMoeda(tg)}</strong>
         </div>
 
         <div style="margin-bottom:8px">
-            ✅ Pago: <strong style="color:#34a853">
+            Pago: <strong style="color:var(--success)">
                 ${formatarMoeda(tpg)}
             </strong>
         </div>
 
         <div style="margin-bottom:12px">
-            ⏳ Falta: <strong style="color:#d93025">
+            Falta: <strong style="color:var(--danger)">
                 ${formatarMoeda(tp)}
             </strong>
         </div>
@@ -991,10 +1002,12 @@
           maiorDivida
             ? `
             <div style="
-                border-top:1px solid rgba(255,255,255,.08);
+                border-top:1px solid var(--border-light);
                 padding-top:10px;
             ">
-                🏆 Maior dívida
+                <span style="display:flex;align-items:center;gap:6px;color:var(--text-secondary);font-size:13px">
+                    <i data-lucide="trophy" class="icon icon-sm"></i> Maior dívida
+                </span>
 
                 <div style="
                     font-size:18px;
@@ -1004,7 +1017,7 @@
                     ${maiorDivida.nome}
                 </div>
 
-                <div style="color:#ffd54f">
+                <div style="color:var(--warning)">
                     ${formatarMoeda(maiorDivida.valorTotal || 0)}
                 </div>
             </div>
@@ -1014,6 +1027,7 @@
 
     </div>
 `;
+          if (window.lucide) lucide.createIcons();
           const proximas = [];
 
           dividas.forEach((d) => {
@@ -1037,7 +1051,7 @@
             document.getElementById("proximaContaCard").innerHTML = `
         <div class="card-proxima">
             <div class="titulo">
-                🔥 Próximo Vencimento
+                <i data-lucide="flame" class="icon icon-sm"></i> Próximo Vencimento
             </div>
 
             <h2>${proxima.nome}</h2>
@@ -1046,11 +1060,12 @@
                 ${formatarMoeda(proxima.valor)}
             </div>
 
-            <small>
-                📅 ${formatarData(proxima.vencimento)}
+            <small style="display:flex;align-items:center;gap:4px">
+                <i data-lucide="calendar" class="icon icon-sm"></i> ${formatarData(proxima.vencimento)}
             </small>
         </div>
     `;
+            if (window.lucide) lucide.createIcons();
           }
 
           const percentual = tg > 0 ? ((tpg / tg) * 100).toFixed(0) : 0;
@@ -1059,7 +1074,7 @@
 <div class="card">
 
    <h3>
-    <span class="material-icons">track_changes</span>
+    <i data-lucide="target" class="icon icon-sm"></i>
     Progresso Geral
 </h3>
 
@@ -1084,6 +1099,7 @@
 
 </div>
 `;
+          if (window.lucide) lucide.createIcons();
 
           const pendentes = [];
 
@@ -1103,37 +1119,10 @@
             (a, b) => new Date(a.vencimento) - new Date(b.vencimento),
           );
 
-          if (pendentes.length) {
-            const prox = pendentes[0];
-
-            document.getElementById("proximaContaCard").innerHTML = `
-       
-
-            <h3>
-  <span class="material-icons">calendar_month</span>
-  Próxima Conta
-</h3>
-
-            <div class="valor">
-                ${prox.nome}
-            </div>
-
-            <div>
-                ${formatarMoeda(prox.valor)}
-            </div>
-
-            <small>
-                Vence em
-                ${formatarData(prox.vencimento)}
-            </small>
-
-        </div>
-    `;
-          }
           document.getElementById("resumoCards").innerHTML = `
     <div class="card">
         <h3>
-            <span class="material-icons">account_balance_wallet</span>
+            <i data-lucide="wallet" class="icon icon-sm"></i>
             Total
         </h3>
         <div class="valor">${formatarMoeda(tg)}</div>
@@ -1141,32 +1130,33 @@
 
     <div class="card">
         <h3>
-            <span class="material-icons">schedule</span>
+            <i data-lucide="clock" class="icon icon-sm"></i>
             Pendente
         </h3>
-        <div class="valor" style="color:#d93025">
+        <div class="valor" style="color:var(--danger)">
             ${formatarMoeda(tp)}
         </div>
     </div>
 
     <div class="card">
         <h3>
-            <span class="material-icons">paid</span>
+            <i data-lucide="badge-check" class="icon icon-sm"></i>
             Pago
         </h3>
-        <div class="valor" style="color:#34a853">
+        <div class="valor" style="color:var(--success)">
             ${formatarMoeda(tpg)}
         </div>
     </div>
 
     <div class="card">
         <h3>
-            <span class="material-icons">inventory_2</span>
+            <i data-lucide="layers" class="icon icon-sm"></i>
             Parcelas
         </h3>
         <div class="valor">${qp} pend.</div>
     </div>
 `;
+          if (window.lucide) lucide.createIcons();
 
           const termo = (
             document.getElementById("buscaDivida")?.value || ""
@@ -1206,7 +1196,8 @@
 
           if (!ord.length) {
             c.innerHTML =
-              '<div class="mensagem-vazia">Nenhuma dívida cadastrada. Clique em + para adicionar.</div>';
+              '<div class="mensagem-vazia"><i data-lucide="inbox" class="icon icon-lg"></i>Nenhuma dívida cadastrada. Toque em + para adicionar.</div>';
+            if (window.lucide) lucide.createIcons();
             return;
           }
 
@@ -1233,16 +1224,16 @@
 
                 if (diff < 0) {
                   statusVencimento =
-                    '<span class="status-atrasada">🚨 Atrasada</span>';
+                    '<span class="status-atrasada"><i data-lucide="alert-triangle" class="icon icon-sm"></i>Atrasada</span>';
                 } else if (diff === 0) {
                   statusVencimento =
-                    '<span class="status-hoje">🔴 Vence Hoje</span>';
+                    '<span class="status-hoje"><i data-lucide="alert-circle" class="icon icon-sm"></i>Vence Hoje</span>';
                 } else if (diff === 1) {
                   statusVencimento =
-                    '<span class="status-amanha">🟡 Vence Amanhã</span>';
+                    '<span class="status-amanha"><i data-lucide="clock" class="icon icon-sm"></i>Vence Amanhã</span>';
                 } else {
                   statusVencimento =
-                    '<span class="status-emdia">🟢 Em Dia</span>';
+                    '<span class="status-emdia"><i data-lucide="check-circle" class="icon icon-sm"></i>Em Dia</span>';
                 }
               }
               return `<div class="divida-card ${getClasseVencimento(d)}" id="card-${d.id}">
@@ -1251,9 +1242,9 @@
                             <div class="info">
                                 <span class="nome">${d.nome}</span>
                                <span class="progresso">
-    💰 ${formatarMoeda(d.valorTotal || 0)}
+    ${formatarMoeda(d.valorTotal || 0)}
     •
-    ✅ ${pg}/${tot} pagas
+    ${pg}/${tot} pagas
 </span>
 ${
   d.parcelas?.find((p) => p.status === "pendente")
@@ -1266,7 +1257,7 @@ ${
 }
                                ${getCatBadge(d.categoria)}
 ${statusVencimento}
-                                ${d.observacao ? `<span class="observacao-texto">📝 ${d.observacao.substring(0, 60)}${d.observacao.length > 60 ? "..." : ""}</span>` : ""}
+                                ${d.observacao ? `<span class="observacao-texto">${d.observacao.substring(0, 60)}${d.observacao.length > 60 ? "..." : ""}</span>` : ""}
                                 <div class="progresso-barra"><div class="progresso-preenchimento" style="width:${pr}%"></div></div>
                             </div>
                             <div style="display:flex;align-items:center;gap:8px;">
@@ -1283,7 +1274,7 @@ ${statusVencimento}
             '${d.parcelas.find((p) => p.status === "pendente").id}'
         )
     ">
-    <span class="material-icons">paid</span>
+    <i data-lucide="check" class="icon icon-sm"></i>
 </button>
       `
         : ""
@@ -1293,17 +1284,17 @@ ${statusVencimento}
 
        <button class="btn-sm btn-outline"
     onclick="window.editarDivida('${d.id}')">
-    <span class="material-icons">edit</span>
+    <i data-lucide="pencil" class="icon icon-sm"></i>
 </button>
 
         <button class="btn-sm btn-danger"
     onclick="window.excluirDivida('${d.id}')">
-    <span class="material-icons">delete</span>
+    <i data-lucide="trash-2" class="icon icon-sm"></i>
 </button>
 
     </div>
 
-    <span class="seta-expandir">▼</span>
+    <span class="seta-expandir"><i data-lucide="chevron-down" class="icon icon-sm"></i></span>
 
 </div>
                         </div>
@@ -1312,18 +1303,19 @@ ${statusVencimento}
                               .map(
                                 (p) => `<div class="parcela-linha">
                                 <div class="parcela-descricao">
-                                    <span class="parcela-status">${p.status === "pago" ? "✅" : "⏳"}</span>
+                                    <span class="parcela-status"><i data-lucide="${p.status === "pago" ? "check-circle" : "circle-dashed"}" class="icon icon-sm"></i></span>
                                     <span>${p.numero}ª <span class="parcela-vencimento">${formatarData(p.vencimento)}</span></span>
                                     ${p.pagoEm ? `<span class="parcela-historico">Pago: ${formatarDataHora(p.pagoEm)}</span>` : ""}
                                     <strong>${formatarMoeda(p.valor || 0)}</strong>
                                 </div>
                                 <button class="btn-sm ${p.status === "pendente" ? "btn-success" : "btn-warning"}"
-    onclick="event.stopPropagation();window.pagarParcela('${d.id}','${p.id}')">
+    onclick="event.stopPropagation();window.pagarParcela('${d.id}','${p.id}')"
+    style="width:auto;padding:0 12px;gap:6px">
 
     ${
       p.status === "pendente"
-        ? '<i class="fa-solid fa-circle-check"></i> Pagar'
-        : '<i class="fa-solid fa-rotate-left"></i> RFZ'
+        ? '<i data-lucide="check-circle" class="icon icon-sm"></i> Pagar'
+        : '<i data-lucide="rotate-ccw" class="icon icon-sm"></i> Reabrir'
     }</button>
                             </div>`,
                               )
@@ -1332,6 +1324,7 @@ ${statusVencimento}
                     </div>`;
             })
             .join("");
+          if (window.lucide) lucide.createIcons();
 
           const proximasVencimentos = [];
 
@@ -1355,8 +1348,9 @@ ${statusVencimento}
 
           if (proximasVencimentos.length === 0) {
             lista.innerHTML = `
-        <div style="text-align:center;padding:15px">
-            🎉 Nenhuma conta pendente
+        <div style="text-align:center;padding:15px;display:flex;flex-direction:column;align-items:center;gap:8px">
+            <i data-lucide="party-popper" class="icon"></i>
+            Nenhuma conta pendente
         </div>
     `;
           } else {
@@ -1385,6 +1379,7 @@ ${statusVencimento}
               )
               .join("");
           }
+          if (window.lucide) lucide.createIcons();
 
           document.querySelectorAll(".card").forEach((card) => {
             card.style.transform = "scale(1.03)";
@@ -1460,14 +1455,14 @@ ${statusVencimento}
           const c = document.getElementById("listaRelatorio");
           if (!l.length) {
             c.innerHTML =
-              '<div class="mensagem-vazia">Nenhuma dívida encontrada para os filtros selecionados.</div>';
+              '<div class="mensagem-vazia"><i data-lucide="search-x" class="icon icon-lg"></i>Nenhuma dívida encontrada para os filtros selecionados.</div>';
           } else {
             c.innerHTML = l
               .map(
                 (d) => `<div class="divida-card" id="card-${d.id}">
                         <div class="divida-cabecalho" onclick="window.toggleExpansao('${d.id}')">
                             <div class="info"><span class="nome">${d.nome}</span>${getCatBadge(d.categoria)}</div>
-                            <span class="seta-expandir">▼</span>
+                            <span class="seta-expandir"><i data-lucide="chevron-down" class="icon icon-sm"></i></span>
                         </div>
                         <div class="parcelas-container">
                             ${d.parcelas
@@ -1476,7 +1471,7 @@ ${statusVencimento}
                                 <span>${p.numero}ª ${formatarData(p.vencimento)}</span>
                                 ${p.pagoEm ? `<span class="parcela-historico">Pago: ${formatarDataHora(p.pagoEm)}</span>` : ""}
                                 <strong>${formatarMoeda(p.valor || 0)}</strong>
-                                <span>${p.status === "pago" ? "✅" : "⏳"}</span>
+                                <span><i data-lucide="${p.status === "pago" ? "check-circle" : "circle-dashed"}" class="icon icon-sm"></i></span>
                             </div>`,
                               )
                               .join("")}
@@ -1485,6 +1480,7 @@ ${statusVencimento}
               )
               .join("");
           }
+          if (window.lucide) lucide.createIcons();
           atualizarGrafico(l);
         };
 
@@ -1596,11 +1592,11 @@ ${statusVencimento}
           setBtnLoading(btn, true);
           try {
             await auth.sendPasswordResetEmail(e);
-            alert("✅ Email enviado! Verifique sua caixa de entrada.");
+            alert("Email enviado! Verifique sua caixa de entrada.");
             window.fecharModalRecuperacao();
           } catch (er) {
             alert(
-              "❌ Erro ao enviar email. Verifique se o email está correto.",
+              "Erro ao enviar email. Verifique se o email está correto.",
             );
           }
           setBtnLoading(btn, false);
@@ -1691,76 +1687,8 @@ window.logout = async function() {
 // ============================================
 // CONTROLE DE TELAS (ESCOPO GLOBAL)
 // ============================================
-
-window.mostrarTelaAuth = function() {
-  console.log("📱 Mostrando tela de login");
-  
-  const screens = [
-    "authScreen",
-    "mainScreen",
-    "adicionarScreen",
-    "relatoriosScreen",
-    "dividasScreen"
-  ];
-  
-  screens.forEach(id => {
-    const el = document.getElementById(id);
-    if (el) {
-      el.classList.remove("active");
-      el.style.display = "none";
-    }
-  });
-  
-  const authScreen = document.getElementById("authScreen");
-  if (authScreen) {
-    authScreen.classList.add("active");
-    authScreen.style.display = "flex";
-  }
-  
-  const navBottom = document.querySelector(".nav-bottom");
-  if (navBottom) {
-    navBottom.style.display = "none";
-  }
-};
-
-window.mostrarApp = function(user) {
-  console.log("📱 Mostrando app para:", user.email);
-  
-  // Esconder login
-  const authScreen = document.getElementById("authScreen");
-  if (authScreen) {
-    authScreen.classList.remove("active");
-    authScreen.style.display = "none";
-  }
-  
-  // Mostrar main
-  const mainScreen = document.getElementById("mainScreen");
-  if (mainScreen) {
-    mainScreen.classList.add("active");
-    mainScreen.style.display = "flex";
-  }
-  
-  // Mostrar navegação
-  const navBottom = document.querySelector(".nav-bottom");
-  if (navBottom) {
-    navBottom.style.display = "flex";
-  }
-  
-  // Atualizar nome
-  const nomeEl = document.getElementById("nomeUsuario");
-  if (nomeEl) {
-    nomeEl.textContent = user.displayName || user.email;
-  }
-  
-  // Carregar dados
-  if (typeof carregarDividasRealtime === 'function') {
-    setTimeout(() => {
-      carregarDividasRealtime();
-    }, 500);
-  }
-  
-  window.navegar("dashboard");
-};
+// mostrarTelaAuth e mostrarApp já são expostas em window
+// nas suas definições originais, dentro da IIFE acima.
 
 // ============================================
 // FUNÇÃO SIMPLES DE NAVEGAÇÃO
