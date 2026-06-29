@@ -1,6 +1,6 @@
 {
-  "versionCode": 2,
-  "versionName": "1.1",
-  "apkUrl": "https://github.com/Heberttdev/App_Financas/releases/download/v1.1/app-release.apk",
-  "notas": "Novo visual com tema escuro e icones, correcoes de notificacoes."
+  "versionCode": 3,
+  "versionName": "1.2",
+  "apkUrl": "https://github.com/Heberttdev/App_Financas/releases/download/v1.2/app-release.apk",
+  "notas": "Corrige permissao de notificacao no Android 13+."
 }

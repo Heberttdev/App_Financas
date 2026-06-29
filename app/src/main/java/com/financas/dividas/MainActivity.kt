@@ -1,8 +1,11 @@
 package com.financas.dividas
 
+import android.Manifest
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.view.View
 import android.webkit.JavascriptInterface
@@ -13,8 +16,10 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.ProgressBar
 import androidx.activity.OnBackPressedCallback
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import androidx.work.ExistingPeriodicWorkPolicy
@@ -44,15 +49,36 @@ class MainActivity : AppCompatActivity() {
     private lateinit var auth: FirebaseAuth
     private lateinit var googleSignInClient: GoogleSignInClient
 
+    private val permissaoNotificacaoLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { concedida ->
+        android.util.Log.d(TAG, "Permissão de notificação concedida: $concedida")
+    }
+
     companion object {
         private const val RC_SIGN_IN = 9001
         private const val TAG = "FirebaseAuth"
+    }
+
+    private fun solicitarPermissaoNotificacao() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            val concedida = ContextCompat.checkSelfPermission(
+                this,
+                Manifest.permission.POST_NOTIFICATIONS
+            ) == PackageManager.PERMISSION_GRANTED
+
+            if (!concedida) {
+                permissaoNotificacaoLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            }
+        }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         criarCanalNotificacao()
         installSplashScreen()
         super.onCreate(savedInstanceState)
+
+        solicitarPermissaoNotificacao()
 
         auth = FirebaseAuth.getInstance()
 

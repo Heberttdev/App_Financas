@@ -1,7 +1,7 @@
 {
   "hosting": {
     "site": "financas-f371a",
-    "public": "web",
+    "public": ".",
     "ignore": [
       "firebase.json",
       "**/node_modules/**",
@@ -51,7 +51,7 @@
     "rewrites": [
       {
         "source": "**",
-        "destination": "/web/index.html"
+        "destination": "/index.html"
       }
     ]
   }
