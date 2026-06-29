@@ -236,6 +236,11 @@ class MainActivity : AppCompatActivity() {
         fun mostrarNotificacao(titulo: String, mensagem: String) {
             android.util.Log.d(TAG, "🔔 Notificação: $titulo - $mensagem")
         }
+
+        @JavascriptInterface
+        fun getVersionCode(): Int {
+            return packageManager.getPackageInfo(packageName, 0).longVersionCode.toInt()
+        }
     }
 
     // ============================================

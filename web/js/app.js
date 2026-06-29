@@ -1762,5 +1762,35 @@ window.irPara = function(tela) {
           setTimeout(() => {
             hideLoading();
           }, 8000);
+          verificarAtualizacaoApp();
         };
+
+        function verificarAtualizacaoApp() {
+          if (!window.Android || typeof window.Android.getVersionCode !== "function") return;
+
+          fetch("/version.json")
+            .then((r) => r.json())
+            .then((dados) => {
+              const versaoLocal = window.Android.getVersionCode();
+              if (dados.versionCode > versaoLocal) {
+                mostrarBannerAtualizacao(dados.versionName, dados.apkUrl);
+              }
+            })
+            .catch(() => {});
+        }
+
+        function mostrarBannerAtualizacao(versionName, apkUrl) {
+          const banner = document.createElement("div");
+          banner.style.cssText =
+            "position:fixed;top:0;left:0;right:0;z-index:3000;background:var(--gradient);color:#fff;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:13px;";
+          banner.innerHTML = `
+            <span style="display:flex;align-items:center;gap:6px"><i data-lucide="rocket" class="icon icon-sm"></i>Nova versão ${versionName} disponível</span>
+            <button style="background:#fff;color:var(--primary);border:none;border-radius:8px;padding:6px 12px;font-weight:600;font-size:12px;cursor:pointer">Atualizar</button>
+          `;
+          banner.querySelector("button").onclick = () => {
+            window.open(apkUrl, "_blank");
+          };
+          document.body.prepend(banner);
+          if (window.lucide) lucide.createIcons();
+        }
       })();
