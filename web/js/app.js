@@ -1,5 +1,4 @@
-
-      (function () {
+(function () {
         const firebaseConfig = {
           apiKey: "AIzaSyD3MwFrcuEIMMU4iXo51x6jG8y_2saRdmA",
           authDomain: "financas-f371a.firebaseapp.com",
@@ -104,25 +103,24 @@
 
         // Tema
         const temaSalvo = localStorage.getItem("tema");
-        if (temaSalvo === "dark") {
+        const prefereEscuro = window.matchMedia("(prefers-color-scheme: dark)").matches;
+
+        if (temaSalvo === "dark" || (!temaSalvo && prefereEscuro)) {
           document.body.classList.add("dark-mode");
+          document.body.classList.remove("light-mode");
+        } else if (temaSalvo === "light") {
+          document.body.classList.add("light-mode");
+          document.body.classList.remove("dark-mode");
         }
+
         window.alternarTema = () => {
-          document.body.classList.toggle("dark-mode");
-          const esc = document.body.classList.contains("dark-mode");
-          localStorage.setItem("tema", esc ? "dark" : "light");
-          document.querySelector(".tema-toggle").textContent = esc
-            ? "☀️"
-            : "🌙";
-          if (
-            document
-              .getElementById("relatoriosScreen")
-              .classList.contains("active")
-          )
+          const escuro = document.body.classList.toggle("dark-mode");
+          document.body.classList.toggle("light-mode", !escuro);
+          localStorage.setItem("tema", escuro ? "dark" : "light");
+          if (document.getElementById("relatoriosScreen").classList.contains("active"))
             aplicarFiltroPeriodo();
+          if (window.lucide) lucide.createIcons();
         };
-        if (temaSalvo === "dark")
-          document.querySelector(".tema-toggle").textContent = "☀️";
 
         // Auth
         window.toggleAuthForm = (f) => {
@@ -410,6 +408,8 @@
           document.getElementById("authScreen").classList.add("active");
           const navBottom = document.querySelector(".nav-bottom");
           if (navBottom) navBottom.style.display = "none";
+          const fab = document.getElementById("fabNovaDivida");
+          if (fab) fab.classList.remove("visivel");
         }
         window.mostrarTelaAuth = mostrarTelaAuth;
 
@@ -436,6 +436,10 @@
           // Mostrar nav bottom
           const navBottom = document.querySelector(".nav-bottom");
           if (navBottom) navBottom.style.display = "flex";
+
+          // Mostrar FAB
+          const fab = document.getElementById("fabNovaDivida");
+          if (fab) fab.classList.add("visivel");
 
           // delay para a sessão do Firebase sincronizar antes de buscar dados
           setTimeout(() => {
@@ -580,6 +584,13 @@
           document
             .querySelectorAll(".nav-item")
             .forEach((el) => el.classList.remove("active"));
+
+          // FAB visível nas telas onde faz sentido adicionar
+          const fab = document.getElementById("fabNovaDivida");
+          if (fab) {
+            fab.classList.toggle("visivel", t === "dashboard" || t === "dividas");
+          }
+
           if (t === "dashboard") {
             document.getElementById("mainScreen").classList.add("active");
             document
@@ -599,13 +610,9 @@
             aplicarFiltroPeriodo();
           } else if (t === "dividas") {
             document.getElementById("dividasScreen").classList.add("active");
-
             document
               .querySelector('.nav-item[data-tela="dividas"]')
               ?.classList.add("active");
-
-            document.getElementById("dividasScreen").classList.add("active");
-
             atualizarDashboard();
           }
         };
@@ -763,11 +770,42 @@
           window.navegar("adicionar");
         };
 
-        window.excluirDivida = async (id) => {
-          if (confirm("Excluir esta dívida?")) {
-            dividas = dividas.filter((d) => d.id !== id);
-            await salvarDividasNoBanco();
-          }
+        window.excluirDivida = (id) => {
+          const dividaRemovida = dividas.find((d) => d.id === id);
+          if (!dividaRemovida) return;
+
+          // remove localmente e re-renderiza imediatamente
+          dividas = dividas.filter((d) => d.id !== id);
+          atualizarDashboard();
+
+          let cancelado = false;
+          let timer;
+
+          const container = document.querySelector(".toast-container");
+          const el = document.createElement("div");
+          el.className = "toast-undo";
+          el.innerHTML = `
+            <span>Dívida "<strong>${dividaRemovida.nome}</strong>" removida</span>
+            <button class="toast-undo-btn">Desfazer</button>
+          `;
+
+          el.querySelector(".toast-undo-btn").onclick = () => {
+            cancelado = true;
+            clearTimeout(timer);
+            dividas.push(dividaRemovida);
+            dividas.sort((a, b) => (a.nome || "").localeCompare(b.nome || ""));
+            atualizarDashboard();
+            el.remove();
+          };
+
+          container.appendChild(el);
+
+          timer = setTimeout(async () => {
+            el.remove();
+            if (!cancelado) {
+              await salvarDividasNoBanco();
+            }
+          }, 5000);
         };
 
         window.pagarParcela = async (did, pid) => {
@@ -1195,8 +1233,17 @@
           }
 
           if (!ord.length) {
-            c.innerHTML =
-              '<div class="mensagem-vazia"><i data-lucide="inbox" class="icon icon-lg"></i>Nenhuma dívida cadastrada. Toque em + para adicionar.</div>';
+            c.innerHTML = `
+              <div class="estado-vazio">
+                <div class="estado-vazio-icone">
+                  <i data-lucide="inbox" style="width:36px;height:36px;stroke:currentColor;fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round"></i>
+                </div>
+                <h3>Nenhuma dívida aqui</h3>
+                <p>Adicione sua primeira dívida para começar a controlar suas finanças.</p>
+                <button class="btn" onclick="abrirNovaDivida()">
+                  <i data-lucide="plus" class="icon icon-sm"></i> Adicionar dívida
+                </button>
+              </div>`;
             if (window.lucide) lucide.createIcons();
             return;
           }

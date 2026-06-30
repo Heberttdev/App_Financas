@@ -14,12 +14,31 @@
   --shadow: rgba(17, 20, 45, 0.08);
   --input-bg: #ffffff;
   --hover-bg: #f7f8fc;
-  --chat-bg: #f7f8fc;
-  --chat-user: #5b6cff;
-  --chat-ai: #ece9fe;
   --gradient: linear-gradient(135deg, var(--primary) 0%, var(--primary-2) 100%);
 }
 
+/* dark mode automático via sistema */
+@media (prefers-color-scheme: dark) {
+  :root:not(.light-mode) {
+    --bg: #0f1320;
+    --bg-card: #171c2e;
+    --text: #e8eaf2;
+    --text-secondary: #8b92a8;
+    --border: #262c42;
+    --border-light: #1f2438;
+    --primary: #6c7bff;
+    --primary-2: #a378ff;
+    --primary-hover: #8390ff;
+    --danger: #f87171;
+    --success: #34d989;
+    --warning: #fbbf24;
+    --shadow: rgba(0, 0, 0, 0.35);
+    --input-bg: rgba(17, 21, 36, 0.5);
+    --hover-bg: #1d2237;
+  }
+}
+
+/* dark mode via classe (toggle manual) */
 .dark-mode {
   --bg: #0f1320;
   --bg-card: #171c2e;
@@ -34,11 +53,8 @@
   --success: #34d989;
   --warning: #fbbf24;
   --shadow: rgba(0, 0, 0, 0.35);
-  --input-bg: #11152422;
+  --input-bg: rgba(17, 21, 36, 0.5);
   --hover-bg: #1d2237;
-  --chat-bg: #11152a;
-  --chat-user: #6c7bff;
-  --chat-ai: #232a47;
 }
 
 * {
@@ -1173,3 +1189,149 @@ body {
   opacity: 0;
   z-index: 0;
 }
+
+/* ============================================
+   FAB — botão flutuante Nova Dívida
+   ============================================ */
+.fab {
+  position: fixed;
+  bottom: calc(72px + env(safe-area-inset-bottom));
+  left: 50%;
+  transform: translateX(calc(-50% + 120px));
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--gradient);
+  color: white;
+  border: none;
+  box-shadow: 0 4px 16px rgba(91, 108, 255, 0.45);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 998;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.fab:active {
+  transform: translateX(calc(-50% + 120px)) scale(0.92);
+  box-shadow: 0 2px 8px rgba(91, 108, 255, 0.3);
+}
+
+.fab.visivel {
+  display: flex;
+}
+
+/* ============================================
+   FEEDBACK DE TOQUE NOS CARDS
+   ============================================ */
+.divida-card {
+  -webkit-tap-highlight-color: transparent;
+}
+
+.divida-cabecalho:active {
+  background: var(--hover-bg);
+  transform: scale(0.99);
+  transition: transform 0.1s;
+}
+
+.card {
+  -webkit-tap-highlight-color: transparent;
+  cursor: default;
+}
+
+.card:active {
+  transform: scale(0.97);
+}
+
+/* ============================================
+   ESTADO VAZIO MELHORADO
+   ============================================ */
+.estado-vazio {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 24px;
+  text-align: center;
+  gap: 16px;
+  flex: 1;
+}
+
+.estado-vazio-icone {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: var(--hover-bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+}
+
+.estado-vazio h3 {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.estado-vazio p {
+  font-size: 14px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.estado-vazio .btn {
+  margin-top: 8px;
+  padding: 12px 28px;
+  font-size: 15px;
+}
+
+/* ============================================
+   TOAST COM UNDO
+   ============================================ */
+.toast-undo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: #1e2235;
+  color: #e8eaf2;
+  font-size: 14px;
+  font-weight: 500;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+  animation: slideUp 0.3s ease;
+  min-width: 280px;
+  max-width: 400px;
+}
+
+.dark-mode .toast-undo {
+  background: #262c42;
+}
+
+.toast-undo-btn {
+  background: none;
+  border: none;
+  color: var(--primary);
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.toast-undo-btn:hover {
+  background: rgba(91, 108, 255, 0.15);
+}
+
+/* ============================================
+   TEMA TOGGLE — ícone dinâmico
+   ============================================ */
+.tema-toggle .icon-sun { display: none; }
+.tema-toggle .icon-moon { display: block; }
+.dark-mode .tema-toggle .icon-sun { display: block; }
+.dark-mode .tema-toggle .icon-moon { display: none; }
