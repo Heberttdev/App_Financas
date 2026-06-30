@@ -17,9 +17,9 @@
   --gradient: linear-gradient(135deg, var(--primary) 0%, var(--primary-2) 100%);
 }
 
-/* dark mode automático via sistema */
+/* dark mode automático via sistema (apenas se o usuário não escolheu manualmente) */
 @media (prefers-color-scheme: dark) {
-  :root:not(.light-mode) {
+  html:not(.light-mode):not(.dark-mode) {
     --bg: #0f1320;
     --bg-card: #171c2e;
     --text: #e8eaf2;
@@ -417,7 +417,6 @@ body {
   color: var(--text);
 }
 
-.card-progresso,
 .card-progresso-geral {
   background: var(--bg-card);
   border-radius: 18px;
@@ -425,27 +424,6 @@ body {
   margin-bottom: 15px;
   box-shadow: 0 2px 8px var(--shadow);
   border: 1px solid var(--border-light);
-}
-
-.card-progresso .titulo {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--success);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.card-progresso .percentual {
-  font-size: 28px;
-  font-weight: 700;
-  color: var(--success);
-  margin: 8px 0;
-}
-
-.card-progresso .valores {
-  color: var(--text-secondary);
-  font-size: 13px;
-  margin-top: 8px;
 }
 
 .card-progresso-geral h3 {
@@ -1164,30 +1142,21 @@ body {
 }
 
 /* ============================================
-   TRANSIÇÃO DE TELA (slide)
+   TRANSIÇÃO DE TELA
    ============================================ */
-.screen.slide-left-out {
-  display: flex !important;
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  min-height: 100%;
-  transform: translateX(-100%);
-  opacity: 0;
-  z-index: 0;
+.screen.active {
+  animation: telaEntrar 0.22s ease;
 }
 
-.screen.slide-right-in {
-  display: flex !important;
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  min-height: 100%;
-  transform: translateX(100%);
-  opacity: 0;
-  z-index: 0;
+@keyframes telaEntrar {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 /* ============================================
@@ -1335,3 +1304,178 @@ body {
 .tema-toggle .icon-moon { display: block; }
 .dark-mode .tema-toggle .icon-sun { display: block; }
 .dark-mode .tema-toggle .icon-moon { display: none; }
+
+/* ============================================
+   SKELETON LOADING
+   ============================================ */
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--border-light) 25%,
+    var(--border) 50%,
+    var(--border-light) 75%
+  );
+  background-size: 200% 100%;
+  animation: skeletonPulse 1.4s ease infinite;
+  border-radius: 8px;
+}
+
+@keyframes skeletonPulse {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+.skeleton-card {
+  background: var(--bg-card);
+  border-radius: 18px;
+  padding: 20px;
+  border: 1px solid var(--border-light);
+}
+
+.skeleton-line {
+  height: 12px;
+  margin-bottom: 8px;
+}
+
+.skeleton-line.curta { width: 40%; }
+.skeleton-line.media { width: 65%; }
+.skeleton-line.larga { width: 90%; }
+
+.skeleton-resumo-cards {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  margin-bottom: 25px;
+}
+
+/* ============================================
+   VALIDAÇÃO INLINE NO FORMULÁRIO
+   ============================================ */
+.form-group.com-erro input,
+.form-group.com-erro select,
+.form-group.com-erro textarea {
+  border-color: var(--danger);
+}
+
+.form-erro-texto {
+  display: none;
+  color: var(--danger);
+  font-size: 12px;
+  margin-top: 2px;
+}
+
+.form-group.com-erro .form-erro-texto {
+  display: block;
+}
+
+/* ============================================
+   FEEDBACK DE PAGAMENTO (toast simples já existe,
+   aqui só o efeito visual no botao/linha)
+   ============================================ */
+@keyframes pagamentoConfirmado {
+  0% { background: rgba(34, 197, 94, 0.25); }
+  100% { background: transparent; }
+}
+
+.parcela-linha.pago-agora {
+  animation: pagamentoConfirmado 1s ease;
+}
+
+/* ============================================
+   ONBOARDING
+   ============================================ */
+.onboarding-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(10, 12, 24, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 5000;
+  padding: 24px;
+}
+
+.onboarding-card {
+  background: var(--bg-card);
+  border-radius: 20px;
+  padding: 28px 24px;
+  max-width: 340px;
+  width: 100%;
+  text-align: center;
+  color: var(--text);
+}
+
+.onboarding-icone {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: var(--gradient);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 16px;
+  color: white;
+}
+
+.onboarding-card h3 {
+  font-size: 18px;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.onboarding-card p {
+  font-size: 14px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  margin-bottom: 20px;
+}
+
+.onboarding-dots {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+  margin-bottom: 20px;
+}
+
+.onboarding-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--border);
+}
+
+.onboarding-dot.ativo {
+  background: var(--primary);
+  width: 18px;
+  border-radius: 4px;
+}
+
+.onboarding-acoes {
+  display: flex;
+  gap: 10px;
+}
+
+.onboarding-acoes .btn-outline {
+  flex: 1;
+}
+
+.onboarding-acoes .btn {
+  flex: 2;
+}
+
+/* ============================================
+   GRÁFICO DE CATEGORIAS
+   ============================================ */
+.grafico-categorias-container {
+  width: 100%;
+  height: 220px;
+  margin: 15px 0;
+  padding: 15px;
+  background: var(--bg-card);
+  border-radius: 18px;
+  border: 1px solid var(--border-light);
+  box-shadow: 0 2px 8px var(--shadow);
+}

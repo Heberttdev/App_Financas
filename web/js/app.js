@@ -31,13 +31,22 @@
           dividas = [],
           filtroAtualRelatorio = "todas";
         let mesFiltroRelatorio = null,
-          graficoInstance = null;
+          graficoInstance = null,
+          graficoCategoriasInstance = null;
         let listenersAtivos = [],
           formularioModificado = false;
         let filtroDividasAtual = "todas";
         let isLoading = false;
 
         const hojeStr = () => new Date().toISOString().split("T")[0];
+
+        let debounceBuscaTimer = null;
+        window.buscarComDebounce = () => {
+          clearTimeout(debounceBuscaTimer);
+          debounceBuscaTimer = setTimeout(() => {
+            atualizarDashboard();
+          }, 250);
+        };
         const agoraISO = () => new Date().toISOString();
         const formatarData = (d) =>
           d ? d.split("-").reverse().join("/") : "-";
@@ -104,18 +113,19 @@
         // Tema
         const temaSalvo = localStorage.getItem("tema");
         const prefereEscuro = window.matchMedia("(prefers-color-scheme: dark)").matches;
+        const raiz = document.documentElement;
 
         if (temaSalvo === "dark" || (!temaSalvo && prefereEscuro)) {
-          document.body.classList.add("dark-mode");
-          document.body.classList.remove("light-mode");
+          raiz.classList.add("dark-mode");
+          raiz.classList.remove("light-mode");
         } else if (temaSalvo === "light") {
-          document.body.classList.add("light-mode");
-          document.body.classList.remove("dark-mode");
+          raiz.classList.add("light-mode");
+          raiz.classList.remove("dark-mode");
         }
 
         window.alternarTema = () => {
-          const escuro = document.body.classList.toggle("dark-mode");
-          document.body.classList.toggle("light-mode", !escuro);
+          const escuro = raiz.classList.toggle("dark-mode");
+          raiz.classList.toggle("light-mode", !escuro);
           localStorage.setItem("tema", escuro ? "dark" : "light");
           if (document.getElementById("relatoriosScreen").classList.contains("active"))
             aplicarFiltroPeriodo();
@@ -449,8 +459,84 @@
 
           // Navegar para dashboard
           window.navegar("dashboard");
+
+          if (!localStorage.getItem("onboardingVisto")) {
+            setTimeout(() => mostrarOnboarding(), 600);
+          }
         }
         window.mostrarApp = mostrarApp;
+
+        const passosOnboarding = [
+          {
+            icone: "wallet",
+            titulo: "Bem-vindo ao Gerenciador de Dívidas",
+            texto: "Controle suas dívidas, parcelas e vencimentos em um só lugar.",
+          },
+          {
+            icone: "plus-circle",
+            titulo: "Adicione suas dívidas",
+            texto: "Toque no botão + para cadastrar cartões, empréstimos, boletos e mais.",
+          },
+          {
+            icone: "check-circle",
+            titulo: "Marque como pago",
+            texto: "Abra uma dívida e toque em Pagar para marcar parcelas como quitadas.",
+          },
+          {
+            icone: "bar-chart-3",
+            titulo: "Acompanhe seu progresso",
+            texto: "Veja relatórios e gráficos para entender para onde vai seu dinheiro.",
+          },
+        ];
+        let passoOnboardingAtual = 0;
+
+        function mostrarOnboarding() {
+          passoOnboardingAtual = 0;
+          renderizarPassoOnboarding();
+          document.getElementById("onboardingOverlay").style.display = "flex";
+        }
+
+        function renderizarPassoOnboarding() {
+          const passo = passosOnboarding[passoOnboardingAtual];
+          const ultimoPasso = passoOnboardingAtual === passosOnboarding.length - 1;
+
+          document.getElementById("onboardingOverlay").innerHTML = `
+            <div class="onboarding-card">
+              <div class="onboarding-icone">
+                <i data-lucide="${passo.icone}" style="width:30px;height:30px;stroke:white;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"></i>
+              </div>
+              <h3>${passo.titulo}</h3>
+              <p>${passo.texto}</p>
+              <div class="onboarding-dots">
+                ${passosOnboarding
+                  .map(
+                    (_, i) =>
+                      `<span class="onboarding-dot ${i === passoOnboardingAtual ? "ativo" : ""}"></span>`,
+                  )
+                  .join("")}
+              </div>
+              <div class="onboarding-acoes">
+                <button class="btn-outline" onclick="window.fecharOnboarding()">Pular</button>
+                <button class="btn" onclick="window.avancarOnboarding()">${ultimoPasso ? "Começar" : "Próximo"}</button>
+              </div>
+            </div>
+          `;
+          if (window.lucide) lucide.createIcons();
+        }
+
+        window.avancarOnboarding = () => {
+          if (passoOnboardingAtual < passosOnboarding.length - 1) {
+            passoOnboardingAtual++;
+            renderizarPassoOnboarding();
+          } else {
+            window.fecharOnboarding();
+          }
+        };
+
+        window.fecharOnboarding = () => {
+          document.getElementById("onboardingOverlay").style.display = "none";
+          localStorage.setItem("onboardingVisto", "1");
+        };
 
         function verificarParcelasVencendo() {
           if (!window.Android) return;
@@ -504,12 +590,11 @@
           console.log("📁 Caminho:", ref.toString());
 
           limparListeners();
-          showLoading("Carregando dados...");
+          mostrarSkeletonDashboard();
 
           // Timeout de segurança
           const timeout = setTimeout(() => {
             console.warn("⏰ Timeout ao carregar dados");
-            hideLoading();
             isLoading = false;
           }, 15000);
 
@@ -524,7 +609,6 @@
               dividas = data ? Object.values(data) : [];
               console.log("✅ Dividas carregadas:", dividas.length);
 
-              hideLoading();
               isLoading = false;
 
               // Atualizar UI
@@ -541,7 +625,6 @@
             (error) => {
               clearTimeout(timeout);
               console.error("❌ Erro no listener:", error);
-              hideLoading();
               isLoading = false;
 
               // Tentar recarregar após erro
@@ -555,6 +638,29 @@
           );
 
           listenersAtivos.push(ref);
+        }
+
+        function mostrarSkeletonDashboard() {
+          const resumo = document.getElementById("resumoCards");
+          if (!resumo) return;
+
+          const cardSkeleton = `
+            <div class="skeleton-card">
+              <div class="skeleton skeleton-line curta"></div>
+              <div class="skeleton skeleton-line larga" style="height:22px;margin-top:6px"></div>
+            </div>`;
+
+          resumo.innerHTML = `<div class="skeleton-resumo-cards">${cardSkeleton.repeat(4)}</div>`;
+
+          const proxima = document.getElementById("proximaContaCard");
+          if (proxima) {
+            proxima.innerHTML = `
+              <div class="skeleton-card">
+                <div class="skeleton skeleton-line curta"></div>
+                <div class="skeleton skeleton-line media" style="height:18px;margin-top:8px"></div>
+                <div class="skeleton skeleton-line larga" style="height:16px"></div>
+              </div>`;
+          }
         }
         async function salvarDividasNoBanco() {
           if (!currentUser) return;
@@ -644,6 +750,9 @@
           document
             .getElementById("adicionarScreen")
             .removeAttribute("data-editing-id");
+          ["grupoNome", "grupoValor", "grupoParcelas", "grupoData"].forEach(
+            (id) => marcarErro(id, false),
+          );
           formularioModificado = false;
         }
 
@@ -666,6 +775,11 @@
             );
         };
 
+        function marcarErro(idGrupo, comErro) {
+          const grupo = document.getElementById(idGrupo);
+          if (grupo) grupo.classList.toggle("com-erro", comErro);
+        }
+
         window.adicionarDivida = async () => {
           const nome = document.getElementById("nomeDivida").value.trim();
           const cat = document.getElementById("categoriaDivida").value;
@@ -677,10 +791,23 @@
           const obs = document.getElementById("observacaoDivida").value.trim();
           const st = document.getElementById("statusDivida").value;
 
-          if (!nome || isNaN(vt) || vt <= 0)
-            return alert("Preencha nome e valor.");
-          if (parc && np < 2) return alert("Mínimo 2 parcelas.");
-          if (!dbv) return alert("Data obrigatória.");
+          const nomeInvalido = !nome;
+          const valorInvalido = isNaN(vt) || vt <= 0;
+          const parcelasInvalidas = parc && np < 2;
+          const dataInvalida = !dbv;
+
+          marcarErro("grupoNome", nomeInvalido);
+          marcarErro("grupoValor", valorInvalido);
+          marcarErro("grupoParcelas", parcelasInvalidas);
+          marcarErro("grupoData", dataInvalida);
+
+          if (nomeInvalido || valorInvalido || parcelasInvalidas || dataInvalida) {
+            const primeiroComErro = document.querySelector(".form-group.com-erro");
+            if (primeiroComErro) {
+              primeiroComErro.scrollIntoView({ behavior: "smooth", block: "center" });
+            }
+            return;
+          }
 
           let vp = parc
             ? parseFloat(document.getElementById("valorParcela").value) ||
@@ -808,6 +935,17 @@
           }, 5000);
         };
 
+        function mostrarToast(mensagem, tipo = "info") {          const container = document.querySelector(".toast-container");
+          if (!container) return;
+
+          const el = document.createElement("div");
+          el.className = `toast ${tipo}`;
+          el.textContent = mensagem;
+          container.appendChild(el);
+
+          setTimeout(() => el.remove(), 3000);
+        }
+
         window.pagarParcela = async (did, pid) => {
           const d = dividas.find((d) => d.id === did);
           if (d) {
@@ -815,7 +953,12 @@
             if (p) {
               p.status = p.status === "pago" ? "pendente" : "pago";
               p.pagoEm = p.status === "pago" ? agoraISO() : null;
+              const ficouPago = p.status === "pago";
               await salvarDividasNoBanco();
+              mostrarToast(
+                ficouPago ? "Parcela paga!" : "Parcela reaberta",
+                ficouPago ? "sucesso" : "info",
+              );
             }
           }
         };
@@ -1621,6 +1764,81 @@ ${statusVencimento}
               responsive: true,
               maintainAspectRatio: false,
               plugins: { legend: { position: "bottom" } },
+            },
+          });
+
+          atualizarGraficoCategorias(d);
+        }
+
+        function atualizarGraficoCategorias(d) {
+          const ctx = document
+            .getElementById("graficoCategorias")
+            ?.getContext("2d");
+          if (!ctx) return;
+          if (graficoCategoriasInstance) graficoCategoriasInstance.destroy();
+
+          const coresPorCategoria = {
+            cartao: "#1565c0",
+            emprestimo: "#c62828",
+            boleto: "#6a1b9a",
+            assinatura: "#2e7d32",
+            educacao: "#3949ab",
+            saude: "#c62828",
+            moradia: "#2e7d32",
+            transporte: "#ef6c00",
+            alimentacao: "#f9a825",
+            lazer: "#7b1fa2",
+            imposto: "#455a64",
+            outros: "#e65100",
+          };
+
+          const nomesPorCategoria = {
+            cartao: "Cartão",
+            emprestimo: "Empréstimo",
+            boleto: "Boleto",
+            assinatura: "Assinatura",
+            educacao: "Educação",
+            saude: "Saúde",
+            moradia: "Moradia",
+            transporte: "Transporte",
+            alimentacao: "Alimentação",
+            lazer: "Lazer",
+            imposto: "Impostos",
+            outros: "Outros",
+          };
+
+          const totaisPorCategoria = {};
+          d.forEach((divida) => {
+            const cat = divida.categoria || "outros";
+            totaisPorCategoria[cat] =
+              (totaisPorCategoria[cat] || 0) + (divida.valorTotal || 0);
+          });
+
+          const categoriasComValor = Object.keys(totaisPorCategoria).filter(
+            (cat) => totaisPorCategoria[cat] > 0,
+          );
+
+          if (!categoriasComValor.length) return;
+
+          graficoCategoriasInstance = new Chart(ctx, {
+            type: "pie",
+            data: {
+              labels: categoriasComValor.map(
+                (cat) => nomesPorCategoria[cat] || cat,
+              ),
+              datasets: [
+                {
+                  data: categoriasComValor.map((cat) => totaisPorCategoria[cat]),
+                  backgroundColor: categoriasComValor.map(
+                    (cat) => coresPorCategoria[cat] || "#999",
+                  ),
+                },
+              ],
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              plugins: { legend: { position: "bottom", labels: { boxWidth: 12 } } },
             },
           });
         }

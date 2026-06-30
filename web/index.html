@@ -58,6 +58,10 @@
         </div>
       </div>
 
+      <div class="onboarding-overlay" id="onboardingOverlay" style="display: none"></div>
+
+      <div class="toast-container"></div>
+
       <div id="authScreen" class="screen active">
         <div style="text-align: center; margin-top: 30px">
           <img
@@ -198,9 +202,10 @@
           <span id="nomeUsuario" style="color: var(--text-secondary)"></span>
         </div>
         <div class="resumo-cards" id="resumoCards"></div>
-        <div class="card-proxima" id="proximaContaCard"></div>
+        <div id="proximaContaCard"></div>
 
-        <div class="card-progresso" id="progressoGeral"></div>
+        <div id="progressoGeral"></div><br/>
+
         <div id="proximosVencimentosCard" class="card-proxima">
           <h4>
             <i data-lucide="calendar-clock" class="icon icon-sm"></i>
@@ -230,7 +235,7 @@
             type="text"
             id="buscaDivida"
             placeholder="Buscar dívida..."
-            oninput="atualizarDashboard()"
+            oninput="buscarComDebounce()"
           />
         </div>
 
@@ -279,13 +284,14 @@
             <i data-lucide="arrow-left" class="icon icon-sm"></i>
           </button>
         </div>
-        <div class="form-group">
+        <div class="form-group" id="grupoNome">
           <label>Nome</label
           ><input
             type="text"
             id="nomeDivida"
             placeholder="Ex: Cartão de Crédito"
           />
+          <span class="form-erro-texto">Informe um nome para a dívida.</span>
         </div>
         <div class="form-group">
           <label>Categoria</label
@@ -304,7 +310,7 @@
             <option value="outros">Outros</option>
           </select>
         </div>
-        <div class="form-group">
+        <div class="form-group" id="grupoValor">
           <label>Valor Total (R$)</label
           ><input
             type="number"
@@ -312,6 +318,7 @@
             step="0.01"
             oninput="calcularValorParcela()"
           />
+          <span class="form-erro-texto">Informe um valor maior que zero.</span>
         </div>
         <div class="form-group checkbox-group">
           <input
@@ -321,7 +328,7 @@
           /><label>Parcelada</label>
         </div>
         <div id="parcelamentoFields" style="display: none">
-          <div class="form-group">
+          <div class="form-group" id="grupoParcelas">
             <label>Nº Parcelas</label
             ><input
               type="number"
@@ -330,15 +337,17 @@
               value="2"
               oninput="calcularValorParcela()"
             />
+            <span class="form-erro-texto">Mínimo de 2 parcelas.</span>
           </div>
           <div class="form-group">
             <label>Valor Parcela (R$)</label
             ><input type="number" id="valorParcela" readonly />
           </div>
         </div>
-        <div class="form-group">
+        <div class="form-group" id="grupoData">
           <label>Data 1º Vencimento</label
           ><input type="date" id="dataVencimento" />
+          <span class="form-erro-texto">Selecione a data do primeiro vencimento.</span>
         </div>
         <div class="form-group">
           <label>Observações</label><textarea id="observacaoDivida"></textarea>
@@ -459,6 +468,13 @@
 
         <div class="grafico-container">
           <canvas id="graficoDividas"></canvas>
+        </div>
+
+        <h3 style="display: flex; align-items: center; gap: 6px; margin: 10px 0 0">
+          <i data-lucide="pie-chart" class="icon icon-sm"></i> Por categoria
+        </h3>
+        <div class="grafico-categorias-container">
+          <canvas id="graficoCategorias"></canvas>
         </div>
 
         <div id="rankingDividas"></div>
