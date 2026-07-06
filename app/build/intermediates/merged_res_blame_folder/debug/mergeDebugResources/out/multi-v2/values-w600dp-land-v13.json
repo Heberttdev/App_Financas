@@ -1,0 +1,19 @@
+{
+    "logs": [
+        {
+            "outputFile": "com.financas.dividas.app-mergeDebugResources-52:/values-w600dp-land-v13/values-w600dp-land-v13.xml",
+            "map": [
+                {
+                    "source": "C:\\Users\\heber\\.gradle\\caches\\9.4.1\\transforms\\4e997cd0ac26de5759eae70e7dddb563\\transformed\\material-1.11.0\\res\\values-w600dp-land-v13\\values-w600dp-land-v13.xml",
+                    "from": {
+                        "startLines": "2",
+                        "startColumns": "4",
+                        "startOffsets": "55",
+                        "endColumns": "54",
+                        "endOffsets": "105"
+                    }
+                }
+            ]
+        }
+    ]
+}
