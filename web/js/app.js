@@ -30,6 +30,8 @@
         let currentUser = null,
           dividas = [],
           filtroAtualRelatorio = "todas";
+        window.getCurrentUser = () => currentUser;
+        window.getDividas = () => dividas;
         let mesFiltroRelatorio = null,
           graficoInstance = null,
           graficoCategoriasInstance = null;
@@ -70,6 +72,7 @@
             style: "currency",
             currency: "BRL",
           });
+        window.formatarMoeda = formatarMoeda;
 
         function verificarAutenticacao() {
           if (!currentUser) {
@@ -160,19 +163,16 @@
 
           setBtnLoading(btn, true);
           erroEl.textContent = "";
-          showLoading("Criando conta...");
           try {
             const uc = await auth.createUserWithEmailAndPassword(e, s);
             await uc.user.updateProfile({ displayName: n });
             await db
               .ref("usuarios/" + uc.user.uid + "/perfil")
               .set({ nome: n, email: e, criadoEm: agoraISO() });
-            hideLoading();
             alert("Conta criada! Faça login.");
             window.toggleAuthForm("login");
             document.getElementById("loginEmail").value = e;
           } catch (er) {
-            hideLoading();
             if (er.code === "auth/email-already-in-use")
               erroEl.textContent = "Email já cadastrado.";
             else if (er.code === "auth/invalid-email")
@@ -195,12 +195,9 @@
 
           setBtnLoading(btn, true);
           erroEl.textContent = "";
-          showLoading("Entrando...");
           try {
             await auth.signInWithEmailAndPassword(e, s);
-            hideLoading();
           } catch (er) {
-            hideLoading();
             if (
               er.code === "auth/user-not-found" ||
               er.code === "auth/invalid-credential"
@@ -257,52 +254,14 @@
           try {
             const userData =
               typeof userJson === "string" ? JSON.parse(userJson) : userJson;
-            console.log(
-              "✅ Usuário recebido do Android:",
-              userData.email,
-              "UID:",
-              userData.uid,
-            );
 
-            // Salvar estado
             sessionStorage.setItem("userLoggedIn", "true");
             sessionStorage.setItem("userEmail", userData.email);
             sessionStorage.setItem("userUid", userData.uid);
 
-            // 🔑 Autenticar no Firebase Web SDK
-            if (userData.idToken && userData.idToken.length > 0) {
-              console.log("🔑 Autenticando no Firebase Web SDK com token...");
-
-              const credential = firebase.auth.GoogleAuthProvider.credential(
-                userData.idToken,
-                null,
-              );
-
-              firebase
-                .auth()
-                .signInWithCredential(credential)
-                .then((result) => {
-                  console.log(
-                    "✅ Firebase Web SDK autenticado:",
-                    result.user.email,
-                  );
-                  // O onAuthStateChanged do Firebase vai disparar
-                })
-                .catch((error) => {
-                  console.error(
-                    "❌ Erro ao autenticar no Firebase Web:",
-                    error,
-                  );
-                  // Fallback: usar dados do Android
-                  usarDadosDoAndroid(userData);
-                });
-            } else {
-              // Sem token, usar dados do Android
-              console.log("⚠️ Sem token, usando dados do Android diretamente");
-              usarDadosDoAndroid(userData);
-            }
+            usarDadosDoAndroid(userData);
           } catch (error) {
-            console.error("❌ Erro ao processar dados do usuário:", error);
+            console.error("Erro ao processar dados do usuario:", error);
           }
         };
 
@@ -310,7 +269,7 @@
         // FALLBACK - USAR DADOS DO ANDROID
         // ============================================
         function usarDadosDoAndroid(userData) {
-          console.log("📱 Usando dados do Android como fallback");
+          if (window.Android) Android.salvarUid(userData.uid);
 
           const user = {
             uid: userData.uid,
@@ -319,28 +278,15 @@
             photoURL: userData.photoURL || "",
           };
 
-          if (window.Android) {
-            Android.salvarUid(userData.uid);
+          if (userData.idToken && typeof firebase !== "undefined") {
+            const provider = new firebase.auth.OAuthProvider("google.com");
+            const credential = provider.credential({ idToken: userData.idToken });
+            firebase.auth().signInWithCredential(credential)
+              .catch(() => mostrarApp(user));
+            // se ok, onAuthStateChanged dispara e chama mostrarApp
+          } else {
+            mostrarApp(user);
           }
-
-          // Forçar o Firebase Auth a reconhecer o usuário
-          // Isso é um fallback para quando o token não funciona
-          if (typeof firebase !== "undefined" && firebase.auth) {
-            firebase
-              .auth()
-              .updateCurrentUser(user)
-              .then(() => {
-                console.log("✅ Firebase Auth atualizado com dados do Android");
-              })
-              .catch((error) => {
-                console.warn(
-                  "⚠️ Não foi possível atualizar o Firebase Auth:",
-                  error,
-                );
-              });
-          }
-
-          mostrarApp(user);
         }
 
         // ============================================
@@ -411,6 +357,7 @@
             "adicionarScreen",
             "relatoriosScreen",
             "dividasScreen",
+            "assistenteScreen",
           ].forEach((id) => {
             const el = document.getElementById(id);
             if (el) el.classList.remove("active");
@@ -684,6 +631,7 @@
             "dividasScreen",
             "adicionarScreen",
             "relatoriosScreen",
+            "assistenteScreen",
           ].forEach((id) =>
             document.getElementById(id).classList.remove("active"),
           );
@@ -691,7 +639,6 @@
             .querySelectorAll(".nav-item")
             .forEach((el) => el.classList.remove("active"));
 
-          // FAB visível nas telas onde faz sentido adicionar
           const fab = document.getElementById("fabNovaDivida");
           if (fab) {
             fab.classList.toggle("visivel", t === "dashboard" || t === "dividas");
@@ -699,27 +646,23 @@
 
           if (t === "dashboard") {
             document.getElementById("mainScreen").classList.add("active");
-            document
-              .querySelector('.nav-item[data-tela="dashboard"]')
-              .classList.add("active");
+            document.querySelector('.nav-item[data-tela="dashboard"]').classList.add("active");
             atualizarDashboard();
           } else if (t === "adicionar") {
             document.getElementById("adicionarScreen").classList.add("active");
-            document
-              .querySelector('.nav-item[data-tela="adicionar"]')
-              .classList.add("active");
+            document.querySelector('.nav-item[data-tela="adicionar"]')?.classList.add("active");
           } else if (t === "relatorios") {
             document.getElementById("relatoriosScreen").classList.add("active");
-            document
-              .querySelector('.nav-item[data-tela="relatorios"]')
-              .classList.add("active");
+            document.querySelector('.nav-item[data-tela="relatorios"]').classList.add("active");
             aplicarFiltroPeriodo();
           } else if (t === "dividas") {
             document.getElementById("dividasScreen").classList.add("active");
-            document
-              .querySelector('.nav-item[data-tela="dividas"]')
-              ?.classList.add("active");
+            document.querySelector('.nav-item[data-tela="dividas"]')?.classList.add("active");
             atualizarDashboard();
+          } else if (t === "assistente") {
+            document.getElementById("assistenteScreen").classList.add("active");
+            document.querySelector('.nav-item[data-tela="assistente"]')?.classList.add("active");
+            if (typeof iniciarAssistente === "function") iniciarAssistente();
           }
         };
 
@@ -1885,68 +1828,21 @@ ${statusVencimento}
           return txt;
         }
 
-        // ============================================
-// FUNÇÃO LOGOUT
-// ============================================
 window.logout = async function() {
-  console.log("🚪 Logout chamado");
-  
-  if (!confirm("Deseja realmente sair?")) {
-    return;
-  }
-  
-  showLoading("Saindo...");
-  
+  limparListeners();
+  currentUser = null;
+  dividas = [];
+  sessionStorage.clear();
+
   try {
-    // 1. Limpar listeners do Firebase
-    if (typeof limparListeners === 'function') {
-      limparListeners();
-    }
-    
-    // 2. Deslogar do Firebase
-    if (firebase && firebase.auth) {
-      await firebase.auth().signOut();
-    }
-    
-    // 3. Notificar o Android (se estiver no app)
-    if (typeof Android !== 'undefined' && Android) {
-      try {
-        Android.signOut();
-      } catch (e) {
-        console.warn("Erro ao notificar Android:", e);
-      }
-    }
-    
-    // 4. Limpar dados locais
-    currentUser = null;
-    dividas = [];
-    sessionStorage.clear();
-    
-    // 5. Esconder loading
-    hideLoading();
-    
-    // 6. Mostrar tela de login
-    mostrarTelaAuth();
-    
-    // 7. Esconder navegação inferior
-    const navBottom = document.querySelector(".nav-bottom");
-    if (navBottom) navBottom.style.display = "none";
-    
-    console.log("✅ Logout realizado com sucesso!");
-    
-  } catch (error) {
-    console.error("❌ Erro durante logout:", error);
-    hideLoading();
-    
-    // Fallback: limpar tudo manualmente
-    currentUser = null;
-    dividas = [];
-    sessionStorage.clear();
-    mostrarTelaAuth();
-    
-    const navBottom = document.querySelector(".nav-bottom");
-    if (navBottom) navBottom.style.display = "none";
+    await firebase.auth().signOut();
+  } catch (e) {}
+
+  if (typeof Android !== 'undefined' && Android) {
+    try { Android.signOut(); } catch (e) {}
   }
+
+  mostrarTelaAuth();
 };
 
 // ============================================
@@ -2022,11 +1918,7 @@ window.irPara = function(tela) {
 
         window.onload = () => {
           document.getElementById("dataVencimento").value = hojeStr();
-          showLoading("Conectando ao Firebase...");
-          // Timeout de segurança para o loading inicial
-          setTimeout(() => {
-            hideLoading();
-          }, 8000);
+          // Firebase conecta em background — sem overlay na tela de auth
           verificarAtualizacaoApp();
         };
 
@@ -2047,9 +1939,9 @@ window.irPara = function(tela) {
         function mostrarBannerAtualizacao(versionName, apkUrl) {
           const banner = document.createElement("div");
           banner.style.cssText =
-            "position:fixed;top:0;left:0;right:0;z-index:3000;background:var(--gradient);color:#fff;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:13px;";
+            "position:fixed;top:0;left:0;right:0;z-index:3000;background:var(--gradient);color:#fff;padding-top:calc(12px + env(safe-area-inset-top));padding-bottom:12px;padding-left:16px;padding-right:16px;display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:13px;";
           banner.innerHTML = `
-            <span style="display:flex;align-items:center;gap:6px"><i data-lucide="rocket" class="icon icon-sm"></i>Nova versão ${versionName} disponível</span>
+            <span style="display:flex;align-items:center;gap:6px"><i data-lucide="rocket" class="icon icon-sm"></i>Nova versao ${versionName} disponivel</span>
             <button style="background:#fff;color:var(--primary);border:none;border-radius:8px;padding:6px 12px;font-weight:600;font-size:12px;cursor:pointer">Atualizar</button>
           `;
           banner.querySelector("button").onclick = () => {

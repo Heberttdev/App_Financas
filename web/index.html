@@ -60,6 +60,38 @@
 
       <div class="onboarding-overlay" id="onboardingOverlay" style="display: none"></div>
 
+      <div class="modal-overlay" id="modalDespesa" style="display:none">
+        <div class="modal">
+          <h2><i data-lucide="receipt" class="icon"></i> Nova Despesa</h2>
+          <div class="form-group">
+            <label>Nome</label>
+            <input type="text" id="despesaNome" placeholder="Ex: Aluguel" />
+          </div>
+          <div class="form-group">
+            <label>Valor (R$)</label>
+            <input type="number" id="despesaValor" placeholder="0,00" step="0.01" />
+          </div>
+          <div class="form-group">
+            <label>Categoria</label>
+            <select id="despesaCategoria">
+              <option value="">Selecione</option>
+              <option value="moradia">Moradia</option>
+              <option value="alimentacao">Alimentacao</option>
+              <option value="transporte">Transporte</option>
+              <option value="saude">Saude</option>
+              <option value="educacao">Educacao</option>
+              <option value="lazer">Lazer</option>
+              <option value="assinatura">Assinatura</option>
+              <option value="outros">Outros</option>
+            </select>
+          </div>
+          <div style="display:flex;gap:10px;margin-top:8px">
+            <button class="btn" onclick="confirmarDespesa()">Salvar</button>
+            <button class="btn-outline" style="flex:1;padding:14px;border-radius:12px;border:1px solid var(--primary);color:var(--primary);background:transparent;font-weight:600;cursor:pointer" onclick="document.getElementById('modalDespesa').style.display='none'">Cancelar</button>
+          </div>
+        </div>
+      </div>
+
       <div class="toast-container"></div>
 
       <div id="authScreen" class="screen active">
@@ -205,7 +237,6 @@
         <div id="proximaContaCard"></div>
 
         <div id="progressoGeral"></div><br/>
-
         <div id="proximosVencimentosCard" class="card-proxima">
           <h4>
             <i data-lucide="calendar-clock" class="icon icon-sm"></i>
@@ -486,47 +517,148 @@
         <div class="lista-dividas" id="listaRelatorio"></div>
       </div>
 
-      <button class="fab" id="fabNovaDivida" onclick="abrirNovaDivida()" title="Nova dívida">
+      <div id="assistenteScreen" class="screen">
+        <div class="header">
+          <h1><i data-lucide="bot" class="icon"></i> Assistente</h1>
+          <button class="btn-outline btn-sm" onclick="navegar('dashboard')">
+            <i data-lucide="arrow-left" class="icon icon-sm"></i>
+          </button>
+        </div>
+
+        <div class="assistente-tabs">
+          <button class="assistente-tab ativo" onclick="abrirTabAssistente('visao', this)">Visao Geral</button>
+          <button class="assistente-tab" onclick="abrirTabAssistente('orcamento', this)">Orcamento</button>
+          <button class="assistente-tab" onclick="abrirTabAssistente('simulacao', this)">Simulacao</button>
+        </div>
+
+        <!-- VISAO GERAL -->
+        <div class="assistente-painel ativo" id="painel-visao">
+          <div class="assistente-secao">
+            <h3><i data-lucide="zap" class="icon icon-sm"></i> Indicadores</h3>
+            <div class="indicadores-grid" id="assistente-indicadores">
+              <div class="indicador-card destaque skeleton-card" style="grid-column:1/-1;height:72px"></div>
+              <div class="indicador-card skeleton-card" style="height:80px"></div>
+              <div class="indicador-card skeleton-card" style="height:80px"></div>
+            </div>
+          </div>
+
+          <div class="assistente-secao">
+            <h3><i data-lucide="lightbulb" class="icon icon-sm"></i> Insights da IA</h3>
+            <div class="insight-lista" id="assistente-insights">
+              <div class="skeleton-card" style="height:60px"></div>
+              <div class="skeleton-card" style="height:60px"></div>
+            </div>
+          </div>
+
+          <div class="assistente-secao">
+            <h3><i data-lucide="shield" class="icon icon-sm"></i> Reserva de Emergencia</h3>
+            <div class="card" id="assistente-reserva"></div>
+          </div>
+
+          <div class="assistente-secao">
+            <h3><i data-lucide="trending-up" class="icon icon-sm"></i> Projecao 6 Meses</h3>
+            <div style="background:var(--bg-card);border-radius:18px;border:1px solid var(--border-light);padding:15px;height:200px">
+              <canvas id="graficoProjecao"></canvas>
+            </div>
+          </div>
+        </div>
+
+        <!-- ORCAMENTO -->
+        <div class="assistente-painel" id="painel-orcamento">
+          <div class="assistente-secao">
+            <h3><i data-lucide="wallet" class="icon icon-sm"></i> Renda</h3>
+            <div class="renda-form">
+              <div class="form-group" style="margin:0">
+                <label>Renda mensal (R$)</label>
+                <input type="number" id="rendaMensal" placeholder="0,00" oninput="salvarOrcamento()">
+              </div>
+              <div id="rendas-extras-lista"></div>
+              <button class="btn-outline" style="font-size:13px;padding:8px" onclick="adicionarRendaExtra()">
+                <i data-lucide="plus" class="icon icon-sm"></i> Renda extra
+              </button>
+            </div>
+          </div>
+
+          <div class="assistente-secao">
+            <h3><i data-lucide="receipt" class="icon icon-sm"></i> Despesas Fixas</h3>
+            <div id="despesas-lista"></div>
+            <button class="btn-outline" style="font-size:13px;padding:8px;margin-top:8px" onclick="adicionarDespesa()">
+              <i data-lucide="plus" class="icon icon-sm"></i> Despesa
+            </button>
+          </div>
+
+          <div class="assistente-secao">
+            <h3><i data-lucide="target" class="icon icon-sm"></i> Metas</h3>
+            <div class="renda-form">
+              <div class="form-group" style="margin:0">
+                <label>Meta de economia mensal (R$)</label>
+                <input type="number" id="metaEconomia" placeholder="0,00" oninput="salvarOrcamento()">
+              </div>
+              <div class="form-group" style="margin:0">
+                <label>Reserva de emergencia desejada (R$)</label>
+                <input type="number" id="metaReserva" placeholder="0,00" oninput="salvarOrcamento()">
+              </div>
+              <div class="form-group" style="margin:0">
+                <label>Reserva atual acumulada (R$)</label>
+                <input type="number" id="reservaAtual" placeholder="0,00" oninput="salvarOrcamento()">
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- SIMULACAO -->
+        <div class="assistente-painel" id="painel-simulacao">
+          <div class="assistente-secao">
+            <h3><i data-lucide="calculator" class="icon icon-sm"></i> Quitacao de Dividas</h3>
+            <div class="card" id="simulacao-resultado">
+              <p style="color:var(--text-secondary);font-size:14px">Preencha o orcamento para ver a simulacao.</p>
+            </div>
+          </div>
+          <div class="assistente-secao">
+            <h3><i data-lucide="calendar" class="icon icon-sm"></i> Previsao do Mes</h3>
+            <div class="card" id="previsao-mes"></div>
+          </div>
+          <div class="assistente-secao">
+            <h3><i data-lucide="sliders-horizontal" class="icon icon-sm"></i> E se eu pagar mais?</h3>
+            <div class="renda-form">
+              <div class="form-group" style="margin:0">
+                <label>Valor extra para quitar dividas (R$)</label>
+                <input type="number" id="extraQuitacao" placeholder="0,00" oninput="recalcularSimulacao()">
+              </div>
+            </div>
+            <div class="card" id="simulacao-extra"></div>
+          </div>
+        </div>
+
+        <!-- IA CHAT -->
+      </div>
+
+      <button class="fab" id="fabNovaDivida" onclick="abrirNovaDivida()" title="Nova divida">
         <i data-lucide="plus" style="width:28px;height:28px;stroke:white;fill:none;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round"></i>
       </button>
 
       <div class="nav-bottom">
-        <div
-          class="nav-item active"
-          data-tela="dashboard"
-          onclick="navegar('dashboard')"
-        >
+        <div class="nav-item active" data-tela="dashboard" onclick="navegar('dashboard')">
           <i data-lucide="layout-dashboard" class="icon"></i>
           Dashboard
         </div>
-        <div
-          class="nav-item"
-          data-tela="dividas"
-          onclick="navegar('dividas')"
-        >
+        <div class="nav-item" data-tela="dividas" onclick="navegar('dividas')">
           <i data-lucide="credit-card" class="icon"></i>
-          Dívidas
+          Dividas
         </div>
-        <div
-          class="nav-item"
-          data-tela="adicionar"
-          onclick="abrirNovaDivida()"
-        >
-          <i data-lucide="plus-circle" class="icon"></i>
-          Nova
+        <div class="nav-item" data-tela="assistente" onclick="navegar('assistente')">
+          <i data-lucide="bot" class="icon"></i>
+          Assistente
         </div>
-        <div
-          class="nav-item"
-          data-tela="relatorios"
-          onclick="navegar('relatorios')"
-        >
+        <div class="nav-item" data-tela="relatorios" onclick="navegar('relatorios')">
           <i data-lucide="bar-chart-3" class="icon"></i>
-          Relatórios
+          Relatorios
         </div>
       </div>
 
       <!-- App JS -->
       <script src="js/app.js"></script>
+      <script src="js/assistente.js"></script>
       <script>
         lucide.createIcons();
       </script>

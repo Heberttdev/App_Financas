@@ -136,9 +136,6 @@ class MainActivity : AppCompatActivity() {
         // 🔑 Interface Android com nome "Android"
         webView.addJavascriptInterface(AndroidBridge(), "Android")
 
-        webView.clearCache(true)
-        webView.clearHistory()
-
         webView.webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(
                 view: WebView?,
@@ -282,7 +279,7 @@ class MainActivity : AppCompatActivity() {
                 android.util.Log.d(TAG, "✅ Login Google sucesso: ${account?.email}")
 
                 account?.idToken?.let { idToken ->
-                    firebaseAuthWithGoogle(idToken)
+                    firebaseAuthWithGoogle(idToken, idToken)
                 } ?: run {
                     enviarErroJavaScript("Token do Google não encontrado")
                 }
@@ -297,17 +294,15 @@ class MainActivity : AppCompatActivity() {
     // ============================================
     // AUTENTICAR NO FIREBASE
     // ============================================
-    private fun firebaseAuthWithGoogle(idToken: String) {
+    private fun firebaseAuthWithGoogle(idToken: String, googleIdToken: String) {
         val credential = GoogleAuthProvider.getCredential(idToken, null)
 
         auth.signInWithCredential(credential)
             .addOnCompleteListener(this) { task ->
                 if (task.isSuccessful) {
                     val user = auth.currentUser
-                    android.util.Log.d(TAG, "✅ Firebase Auth sucesso: ${user?.email}")
-                    enviarUsuarioJavaScript(user)
+                    enviarUsuarioJavaScript(user, googleIdToken)
                 } else {
-                    android.util.Log.e(TAG, "❌ Firebase Auth falhou", task.exception)
                     enviarErroJavaScript("Erro na autenticação Firebase: ${task.exception?.message}")
                 }
             }
@@ -329,15 +324,12 @@ class MainActivity : AppCompatActivity() {
     // ============================================
     // ⭐ FUNÇÃO PRINCIPAL - ENVIAR USUÁRIO PARA JS
     // ============================================
-    private fun enviarUsuarioJavaScript(user: FirebaseUser?) {
+    private fun enviarUsuarioJavaScript(user: FirebaseUser?, googleIdToken: String = "") {
         if (user == null) {
-            // Limpar UID salvo quando usuário desloga
             getSharedPreferences("app", MODE_PRIVATE)
                 .edit()
                 .remove("uid")
                 .apply()
-
-            android.util.Log.d(TAG, "🗑️ UID removido do SharedPreferences")
 
             runOnUiThread {
                 webView.evaluateJavascript(
@@ -348,57 +340,37 @@ class MainActivity : AppCompatActivity() {
             return
         }
 
-        // 💾 SALVAR UID PARA O WORKER USAR
         try {
             getSharedPreferences("app", MODE_PRIVATE)
                 .edit()
                 .putString("uid", user.uid)
                 .apply()
-
-            android.util.Log.d(TAG, "💾 UID salvo no SharedPreferences: ${user.uid}")
         } catch (e: Exception) {
-            android.util.Log.e(TAG, "❌ Erro ao salvar UID", e)
+            android.util.Log.e(TAG, "Erro ao salvar UID", e)
         }
 
-        // 🔑 PEGAR O TOKEN ID DO USUÁRIO PARA ENVIAR AO JS
         user.getIdToken(true)
             .addOnCompleteListener { tokenTask ->
-                if (tokenTask.isSuccessful) {
-                    val idToken = tokenTask.result?.token ?: ""
-                    android.util.Log.d(TAG, "🔑 Token obtido com sucesso")
-
-                    // 📤 ENVIAR DADOS DO USUÁRIO + TOKEN PARA O JAVASCRIPT
-                    try {
-                        val jsonUser = JSONObject().apply {
-                            put("uid", user.uid)
-                            put("displayName", user.displayName ?: "")
-                            put("email", user.email ?: "")
-                            put("photoURL", user.photoUrl?.toString() ?: "")
-                            put("providerId", user.providerId)
-                            put("idToken", idToken)  // 🔑 ENVIANDO O TOKEN
-                        }
-
-                        val userJson = jsonUser.toString()
-                        android.util.Log.d(TAG, "📤 Enviando usuário com token para JS: $userJson")
-
-                        val escapedJson = userJson.replace("'", "\\'")
-
-                        runOnUiThread {
-                            webView.evaluateJavascript(
-                                "javascript:window.onAuthStateChanged('$escapedJson')",
-                                null
-                            )
-                        }
-
-                    } catch (e: Exception) {
-                        android.util.Log.e(TAG, "❌ Erro ao criar JSON do usuário", e)
-                        enviarErroJavaScript("Erro ao processar dados do usuário")
+                try {
+                    val jsonUser = JSONObject().apply {
+                        put("uid", user.uid)
+                        put("displayName", user.displayName ?: "")
+                        put("email", user.email ?: "")
+                        put("photoURL", user.photoUrl?.toString() ?: "")
+                        put("providerId", user.providerId)
+                        put("idToken", googleIdToken) // Google ID token para o Web SDK
                     }
 
-                } else {
-                    android.util.Log.e(TAG, "❌ Erro ao pegar token", tokenTask.exception)
-                    // Tentar enviar sem token mesmo assim
-                    enviarUsuarioSemToken(user)
+                    val escapedJson = jsonUser.toString().replace("'", "\\'")
+
+                    runOnUiThread {
+                        webView.evaluateJavascript(
+                            "javascript:window.onAuthStateChanged('$escapedJson')",
+                            null
+                        )
+                    }
+                } catch (e: Exception) {
+                    enviarErroJavaScript("Erro ao processar dados do usuario")
                 }
             }
     }
@@ -406,35 +378,6 @@ class MainActivity : AppCompatActivity() {
     // ============================================
     // FALLBACK - ENVIAR USUÁRIO SEM TOKEN
     // ============================================
-    private fun enviarUsuarioSemToken(user: FirebaseUser) {
-        try {
-            val jsonUser = JSONObject().apply {
-                put("uid", user.uid)
-                put("displayName", user.displayName ?: "")
-                put("email", user.email ?: "")
-                put("photoURL", user.photoUrl?.toString() ?: "")
-                put("providerId", user.providerId)
-                put("idToken", "")  // Token vazio
-            }
-
-            val userJson = jsonUser.toString()
-            android.util.Log.d(TAG, "📤 Enviando usuário sem token (fallback)")
-
-            val escapedJson = userJson.replace("'", "\\'")
-
-            runOnUiThread {
-                webView.evaluateJavascript(
-                    "javascript:window.onAuthStateChanged('$escapedJson')",
-                    null
-                )
-            }
-
-        } catch (e: Exception) {
-            android.util.Log.e(TAG, "❌ Erro no fallback", e)
-            enviarErroJavaScript("Erro ao processar dados do usuário")
-        }
-    }
-
     // ============================================
     // ENVIAR ERRO PARA O JAVASCRIPT
     // ============================================
