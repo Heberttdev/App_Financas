@@ -1316,6 +1316,11 @@
             ord = ord.filter((d) =>
               d.parcelas?.every((p) => p.status === "pago"),
             );
+          } else {
+            // "todas" — oculta completamente quitadas
+            ord = ord.filter((d) =>
+              d.parcelas?.some((p) => p.status === "pendente"),
+            );
           }
 
           if (!ord.length) {
