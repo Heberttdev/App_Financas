@@ -231,12 +231,15 @@
           </div>
         </div>
         <div class="user-info" style="margin-bottom: 15px">
-          <span id="nomeUsuario" style="color: var(--text-secondary)"></span>
+          <h3>Olá, <span id="nomeUsuario" style="color: var(--text-secondary)"></span></h3>
+          
         </div>
+
         <div class="resumo-cards" id="resumoCards"></div>
+
         <div id="proximaContaCard"></div>
 
-        <div id="progressoGeral"></div><br/>
+        <div id="progressoGeral"></div> <br/>
         <div id="proximosVencimentosCard" class="card-proxima">
           <h4>
             <i data-lucide="calendar-clock" class="icon icon-sm"></i>
@@ -608,26 +611,55 @@
 
         <!-- SIMULACAO -->
         <div class="assistente-painel" id="painel-simulacao">
+
+          <!-- Resumo geral -->
           <div class="assistente-secao">
-            <h3><i data-lucide="calculator" class="icon icon-sm"></i> Quitacao de Dividas</h3>
-            <div class="card" id="simulacao-resultado">
+            <h3><i data-lucide="calculator" class="icon icon-sm"></i> Visao Geral</h3>
+            <div id="simulacao-resultado">
               <p style="color:var(--text-secondary);font-size:14px">Preencha o orcamento para ver a simulacao.</p>
             </div>
           </div>
+
+          <!-- Ranking de dividas -->
           <div class="assistente-secao">
-            <h3><i data-lucide="calendar" class="icon icon-sm"></i> Previsao do Mes</h3>
-            <div class="card" id="previsao-mes"></div>
+            <h3><i data-lucide="list-ordered" class="icon icon-sm"></i> Suas Dividas</h3>
+            <div id="simulacao-ranking"></div>
           </div>
+
+          <!-- Estrategia -->
+          <div class="assistente-secao">
+            <h3><i data-lucide="route" class="icon icon-sm"></i> Estrategia de Pagamento</h3>
+            <div style="display:flex;gap:8px;margin-bottom:12px">
+              <button class="filtro-btn ativo" id="btn-avalanche" onclick="selecionarEstrategia('avalanche', this)">Avalanche</button>
+              <button class="filtro-btn" id="btn-bola" onclick="selecionarEstrategia('bola', this)">Bola de Neve</button>
+            </div>
+            <div id="simulacao-estrategia"></div>
+          </div>
+
+          <!-- Simulador E se -->
           <div class="assistente-secao">
             <h3><i data-lucide="sliders-horizontal" class="icon icon-sm"></i> E se eu pagar mais?</h3>
             <div class="renda-form">
               <div class="form-group" style="margin:0">
-                <label>Valor extra para quitar dividas (R$)</label>
-                <input type="number" id="extraQuitacao" placeholder="0,00" oninput="recalcularSimulacao()">
+                <label>Valor extra por mes (R$)</label>
+                <input type="range" id="extraQuitacaoSlider" min="0" max="2000" step="50" value="0"
+                  oninput="document.getElementById('extraQuitacaoValor').textContent=formatarMoeda(this.value);recalcularSimulacao(this.value)">
+                <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text-secondary);margin-top:4px">
+                  <span>R$ 0</span>
+                  <strong id="extraQuitacaoValor" style="color:var(--primary)">R$ 0,00</strong>
+                  <span>R$ 2.000</span>
+                </div>
               </div>
             </div>
-            <div class="card" id="simulacao-extra"></div>
+            <div id="simulacao-extra" style="margin-top:12px"></div>
           </div>
+
+          <!-- Previsao do mes -->
+          <div class="assistente-secao">
+            <h3><i data-lucide="calendar" class="icon icon-sm"></i> Previsao do Mes</h3>
+            <div class="card" id="previsao-mes"></div>
+          </div>
+
         </div>
 
         <!-- IA CHAT -->

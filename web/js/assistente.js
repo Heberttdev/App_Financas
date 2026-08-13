@@ -397,80 +397,184 @@
 
   // ─── Simulacao ─────────────────────────────────────────────────────────────
 
+  let estrategiaAtual = "avalanche";
+
+  window.selecionarEstrategia = (tipo, btn) => {
+    estrategiaAtual = tipo;
+    document.querySelectorAll("#btn-avalanche, #btn-bola").forEach((b) => b.classList.remove("ativo"));
+    btn.classList.add("ativo");
+    renderEstrategia();
+  };
+
+  // ordena dividas pela estrategia escolhida
+  function dividasOrdenadas(tipo) {
+    const divs = (window.getDividas ? window.getDividas() : []).filter(
+      (d) => d.parcelas?.some((p) => p.status === "pendente")
+    );
+    if (tipo === "avalanche") {
+      // maior valor total pendente primeiro (proxy de maior impacto financeiro)
+      return [...divs].sort((a, b) => {
+        const va = a.parcelas.filter((p) => p.status === "pendente").reduce((s, p) => s + (p.valor || 0), 0);
+        const vb = b.parcelas.filter((p) => p.status === "pendente").reduce((s, p) => s + (p.valor || 0), 0);
+        return vb - va;
+      });
+    } else {
+      // menor valor total pendente primeiro (bola de neve)
+      return [...divs].sort((a, b) => {
+        const va = a.parcelas.filter((p) => p.status === "pendente").reduce((s, p) => s + (p.valor || 0), 0);
+        const vb = b.parcelas.filter((p) => p.status === "pendente").reduce((s, p) => s + (p.valor || 0), 0);
+        return va - vb;
+      });
+    }
+  }
+
   function renderSimulacao() {
-    const meses = mesesParaQuitacao(0);
     const total = totalDividasPendentes();
     const disp = saldoDisponivel();
-
+    const meses = mesesParaQuitacao(0);
     const el = document.getElementById("simulacao-resultado");
     if (!el) return;
 
     if (total === 0) {
-      el.innerHTML = `<p style="color:var(--success);font-weight:700">Nenhuma divida pendente!</p>`;
-      return;
-    }
-    if (disp <= 0) {
-      el.innerHTML = `<p style="color:var(--danger)">Saldo disponivel negativo. Nao e possivel simular quitacao.</p>`;
+      el.innerHTML = `
+        <div style="text-align:center;padding:20px;color:var(--success)">
+          <i data-lucide="party-popper" style="width:40px;height:40px;stroke:currentColor;fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;margin-bottom:8px"></i>
+          <div style="font-weight:700;font-size:16px">Sem dividas pendentes!</div>
+        </div>`;
+      if (window.lucide) lucide.createIcons();
       return;
     }
 
     const dataQuitacao = new Date();
     dataQuitacao.setMonth(dataQuitacao.getMonth() + (meses || 0));
+    const pct = disp > 0 ? Math.min(100, Math.round((disp / Math.max(1, total)) * 100 * (meses || 1) / (meses || 1))) : 0;
 
     el.innerHTML = `
-      <div style="display:flex;flex-direction:column;gap:10px">
-        <div style="display:flex;justify-content:space-between">
-          <span style="color:var(--text-secondary);font-size:13px">Total pendente</span>
-          <strong style="color:var(--danger)">${formatarMoeda(total)}</strong>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div class="indicador-card">
+          <div class="indicador-label">Total pendente</div>
+          <div class="indicador-valor" style="font-size:16px;color:var(--danger)">${formatarMoeda(total)}</div>
         </div>
-        <div style="display:flex;justify-content:space-between">
-          <span style="color:var(--text-secondary);font-size:13px">Disponivel/mes para dividas</span>
-          <strong>${formatarMoeda(disp)}</strong>
+        <div class="indicador-card">
+          <div class="indicador-label">Disponivel/mes</div>
+          <div class="indicador-valor" style="font-size:16px;color:${disp >= 0 ? "var(--success)" : "var(--danger)"}">${formatarMoeda(disp)}</div>
         </div>
-        <div style="display:flex;justify-content:space-between">
-          <span style="color:var(--text-secondary);font-size:13px">Prazo estimado</span>
-          <strong style="color:var(--primary)">${meses ? meses + " meses" : "-"}</strong>
+        <div class="indicador-card ${meses && meses <= 6 ? "positivo" : meses && meses <= 18 ? "" : "alerta"}">
+          <div class="indicador-label">Prazo estimado</div>
+          <div class="indicador-valor" style="font-size:16px">${meses ? meses + " meses" : "—"}</div>
         </div>
-        ${
-          meses
-            ? `<div style="display:flex;justify-content:space-between">
-          <span style="color:var(--text-secondary);font-size:13px">Previsao de quitacao</span>
-          <strong>${dataQuitacao.toLocaleDateString("pt-BR", { month: "long", year: "numeric" })}</strong>
-        </div>`
-            : ""
-        }
+        <div class="indicador-card">
+          <div class="indicador-label">Previsao quitacao</div>
+          <div class="indicador-valor" style="font-size:13px;font-weight:700">${meses ? dataQuitacao.toLocaleDateString("pt-BR", { month: "short", year: "numeric" }) : "—"}</div>
+        </div>
       </div>`;
+    if (window.lucide) lucide.createIcons();
 
-    renderSimulacaoExtra();
+    renderRanking();
+    renderEstrategia();
+    renderSimulacaoExtra(0);
     renderPrevisaoMes();
   }
 
-  window.recalcularSimulacao = () => {
-    renderSimulacaoExtra();
+  function renderRanking() {
+    const el = document.getElementById("simulacao-ranking");
+    if (!el) return;
+    const divs = window.getDividas ? window.getDividas() : [];
+    if (!divs.length) { el.innerHTML = ""; return; }
+
+    el.innerHTML = divs.map((d) => {
+      const total = (d.parcelas || []).length;
+      const pagas = (d.parcelas || []).filter((p) => p.status === "pago").length;
+      const pct = total > 0 ? Math.round((pagas / total) * 100) : 0;
+      const pendVal = (d.parcelas || []).filter((p) => p.status === "pendente").reduce((s, p) => s + (p.valor || 0), 0);
+      const quitada = pagas === total;
+
+      return `
+        <div class="card" style="margin-bottom:10px;padding:14px">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+            <div>
+              <div style="font-weight:700;font-size:15px">${d.nome}</div>
+              <div style="font-size:12px;color:var(--text-secondary)">${pagas}/${total} parcelas pagas</div>
+            </div>
+            <div style="text-align:right">
+              <div style="font-weight:700;color:${quitada ? "var(--success)" : "var(--danger)"}">
+                ${quitada ? "Quitada" : formatarMoeda(pendVal)}
+              </div>
+              <div style="font-size:11px;color:var(--text-secondary)">${pct}% pago</div>
+            </div>
+          </div>
+          <div class="progresso-barra" style="height:6px">
+            <div class="progresso-preenchimento" style="width:${pct}%;background:${quitada ? "var(--success)" : "var(--gradient)"}"></div>
+          </div>
+        </div>`;
+    }).join("");
+  }
+
+  function renderEstrategia() {
+    const el = document.getElementById("simulacao-estrategia");
+    if (!el) return;
+    const ord = dividasOrdenadas(estrategiaAtual);
+    if (!ord.length) {
+      el.innerHTML = `<p style="color:var(--text-secondary);font-size:13px">Nenhuma divida pendente.</p>`;
+      return;
+    }
+
+    const descricao = estrategiaAtual === "avalanche"
+      ? "Pague primeiro as dividas de maior valor — reduz o montante total mais rapido."
+      : "Pague primeiro as dividas menores — elimina contas rapido e da motivacao.";
+
+    el.innerHTML = `
+      <div class="insight-card tipo-info" style="margin-bottom:12px">
+        <div class="insight-icone"><i data-lucide="info" style="width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"></i></div>
+        <div class="insight-texto">${descricao}</div>
+      </div>
+      ${ord.map((d, i) => {
+        const pendVal = (d.parcelas || []).filter((p) => p.status === "pendente").reduce((s, p) => s + (p.valor || 0), 0);
+        const proxima = (d.parcelas || []).find((p) => p.status === "pendente");
+        return `
+          <div style="display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--border-light)">
+            <div style="width:28px;height:28px;border-radius:50%;background:var(--gradient);color:white;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex-shrink:0">${i + 1}</div>
+            <div style="flex:1">
+              <div style="font-weight:700">${d.nome}</div>
+              ${proxima ? `<div style="font-size:12px;color:var(--text-secondary)">Proxima: ${new Date(proxima.vencimento + "T00:00:00").toLocaleDateString("pt-BR")}</div>` : ""}
+            </div>
+            <div style="font-weight:700;color:var(--danger)">${formatarMoeda(pendVal)}</div>
+          </div>`;
+      }).join("")}`;
+    if (window.lucide) lucide.createIcons();
+  }
+
+  window.recalcularSimulacao = (extra = 0) => {
+    renderSimulacaoExtra(parseFloat(extra) || 0);
   };
 
-  function renderSimulacaoExtra() {
+  function renderSimulacaoExtra(extra) {
     const el = document.getElementById("simulacao-extra");
     if (!el) return;
-    const extra = parseFloat(document.getElementById("extraQuitacao")?.value) || 0;
-    if (extra <= 0) {
-      el.innerHTML = `<p style="color:var(--text-secondary);font-size:13px">Informe um valor extra acima para ver o impacto.</p>`;
+    if (!extra || extra <= 0) {
+      el.innerHTML = `<p style="color:var(--text-secondary);font-size:13px;text-align:center">Mova o slider para ver o impacto de um pagamento extra.</p>`;
       return;
     }
     const mesesSem = mesesParaQuitacao(0);
     const mesesCom = mesesParaQuitacao(extra);
     const ganho = (mesesSem || 0) - (mesesCom || 0);
+    const economia = extra * ganho;
+
     el.innerHTML = `
-      <div style="display:flex;flex-direction:column;gap:8px">
-        <div style="display:flex;justify-content:space-between;font-size:14px">
+      <div class="card" style="padding:14px">
+        <div style="display:flex;justify-content:space-between;margin-bottom:8px;font-size:14px">
           <span style="color:var(--text-secondary)">Sem extra</span>
-          <strong>${mesesSem ? mesesSem + " meses" : "-"}</strong>
+          <strong>${mesesSem ? mesesSem + " meses" : "—"}</strong>
         </div>
-        <div style="display:flex;justify-content:space-between;font-size:14px">
-          <span style="color:var(--text-secondary)">Com extra de ${formatarMoeda(extra)}/mes</span>
-          <strong style="color:var(--success)">${mesesCom ? mesesCom + " meses" : "-"}</strong>
+        <div style="display:flex;justify-content:space-between;margin-bottom:12px;font-size:14px">
+          <span style="color:var(--text-secondary)">Com + ${formatarMoeda(extra)}/mes</span>
+          <strong style="color:var(--success)">${mesesCom ? mesesCom + " meses" : "—"}</strong>
         </div>
-        ${ganho > 0 ? `<div style="background:rgba(34,197,94,.12);border-radius:10px;padding:10px;text-align:center;color:var(--success);font-weight:700">Voce eliminaria ${ganho} mes(es) de divida!</div>` : ""}
+        ${ganho > 0 ? `
+          <div style="background:rgba(34,197,94,.12);border-radius:10px;padding:12px;text-align:center">
+            <div style="color:var(--success);font-weight:700;font-size:15px">-${ganho} meses de divida</div>
+            ${economia > 0 ? `<div style="color:var(--text-secondary);font-size:12px;margin-top:4px">Economia de ~${formatarMoeda(economia)} em juros e tempo</div>` : ""}
+          </div>` : `<div style="color:var(--text-secondary);font-size:13px;text-align:center">Aumente o valor para ver impacto significativo.</div>`}
       </div>`;
   }
 
@@ -478,23 +582,38 @@
     const el = document.getElementById("previsao-mes");
     if (!el) return;
     const { gastado, restante, percentual } = previsaoFimMes();
+    const hoje = new Date();
+    const diasNoMes = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0).getDate();
+    const diasRestantes = diasNoMes - hoje.getDate();
+    const ritmo = gastoHoje();
+
     el.innerHTML = `
-      <div style="margin-bottom:10px">
+      <div style="margin-bottom:12px">
         <div class="progresso-label">
-          <span>Gasto ate hoje</span>
-          <span>${percentual}%</span>
+          <span>Consumido este mes</span>
+          <span style="color:${percentual > 80 ? "var(--danger)" : "var(--text-secondary)"}">${percentual}%</span>
         </div>
         <div class="progresso-barra">
           <div class="progresso-preenchimento" style="width:${Math.min(100, percentual)}%;background:${percentual > 80 ? "var(--danger)" : "var(--gradient)"}"></div>
         </div>
       </div>
-      <div style="display:flex;justify-content:space-between;font-size:14px">
-        <span style="color:var(--text-secondary)">Gastado este mes</span>
-        <strong style="color:var(--warning)">${formatarMoeda(gastado)}</strong>
-      </div>
-      <div style="display:flex;justify-content:space-between;font-size:14px;margin-top:6px">
-        <span style="color:var(--text-secondary)">Restante ate fim do mes</span>
-        <strong style="color:${restante >= 0 ? "var(--success)" : "var(--danger)"}">${formatarMoeda(restante)}</strong>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <div class="indicador-card">
+          <div class="indicador-label">Gastado</div>
+          <div class="indicador-valor" style="font-size:15px;color:var(--warning)">${formatarMoeda(gastado)}</div>
+        </div>
+        <div class="indicador-card ${restante >= 0 ? "positivo" : "alerta"}">
+          <div class="indicador-label">Restante</div>
+          <div class="indicador-valor" style="font-size:15px;color:${restante >= 0 ? "var(--success)" : "var(--danger)"}">${formatarMoeda(restante)}</div>
+        </div>
+        <div class="indicador-card">
+          <div class="indicador-label">Ritmo diario</div>
+          <div class="indicador-valor" style="font-size:15px">${formatarMoeda(ritmo)}</div>
+        </div>
+        <div class="indicador-card">
+          <div class="indicador-label">Dias restantes</div>
+          <div class="indicador-valor" style="font-size:15px">${diasRestantes}</div>
+        </div>
       </div>`;
   }
 
