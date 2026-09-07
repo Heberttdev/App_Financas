@@ -9,12 +9,17 @@ import androidx.core.content.ContextCompat
 import androidx.work.Worker
 import androidx.work.WorkerParameters
 import com.google.android.gms.tasks.Tasks
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.database.FirebaseDatabase
 import java.text.NumberFormat
 import java.time.LocalDate
 import java.time.temporal.ChronoUnit
 import java.util.Locale
+import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
+import androidx.security.crypto.EncryptedSharedPreferences
+import androidx.security.crypto.MasterKey
 
 class NotificacaoWorker(
     context: Context,
@@ -27,20 +32,29 @@ class NotificacaoWorker(
     }
 
     override fun doWork(): Result {
-        android.util.Log.d(TAG, "Worker iniciado")
+        val masterKey = MasterKey.Builder(applicationContext)
+            .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+            .build()
 
-        val uid = applicationContext
-            .getSharedPreferences("app", Context.MODE_PRIVATE)
-            .getString("uid", null)
+        val encryptedPrefs = EncryptedSharedPreferences.create(
+            applicationContext,
+            "secure_app",
+            masterKey,
+            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+        )
+
+        val uid = encryptedPrefs.getString("uid", null)
 
         if (uid == null) {
-            android.util.Log.d(TAG, "UID não encontrado")
             return Result.success()
         }
 
-        android.util.Log.d(TAG, "UID encontrado: $uid")
-
         criarCanalNotificacao()
+
+        if (aguardarUsuarioAutenticado(uid) == null) {
+            return Result.retry()
+        }
 
         val snapshot = try {
             Tasks.await(
@@ -53,11 +67,8 @@ class NotificacaoWorker(
                 TimeUnit.SECONDS
             )
         } catch (e: Exception) {
-            android.util.Log.e(TAG, "Erro ao buscar dívidas", e)
             return Result.retry()
         }
-
-        android.util.Log.d(TAG, "Total de dívidas: ${snapshot.childrenCount}")
 
         val hoje = LocalDate.now()
         var notificacoesEnviadas = 0
@@ -86,19 +97,42 @@ class NotificacaoWorker(
                         }?.let { (titulo, mensagem) ->
                             mostrarNotificacao(titulo, mensagem)
                             notificacoesEnviadas++
-                            android.util.Log.d(TAG, "Notificação enviada: $titulo")
                         }
 
                     } catch (e: Exception) {
-                        android.util.Log.e(TAG, "Erro ao processar parcela", e)
+                        // erro silencioso
                     }
                 }
             }
         }
 
-        android.util.Log.d(TAG, "Notificações enviadas: $notificacoesEnviadas")
-
         return Result.success()
+    }
+
+    private fun aguardarUsuarioAutenticado(uid: String): FirebaseUser? {
+        val auth = FirebaseAuth.getInstance()
+        if (auth.currentUser?.uid == uid) return auth.currentUser
+
+        val latch = CountDownLatch(1)
+        var usuario: FirebaseUser? = null
+
+        val listener = FirebaseAuth.AuthStateListener { a ->
+            if (a.currentUser?.uid == uid) {
+                usuario = a.currentUser
+                latch.countDown()
+            }
+        }
+
+        auth.addAuthStateListener(listener)
+        try {
+            latch.await(15, TimeUnit.SECONDS)
+        } catch (e: InterruptedException) {
+            Thread.currentThread().interrupt()
+        } finally {
+            auth.removeAuthStateListener(listener)
+        }
+
+        return usuario
     }
 
     private fun criarCanalNotificacao() {
@@ -127,7 +161,6 @@ class NotificacaoWorker(
             ) == PackageManager.PERMISSION_GRANTED
 
             if (!hasPermission) {
-                android.util.Log.w(TAG, "Sem permissão para notificações")
                 return
             }
         }

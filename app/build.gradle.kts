@@ -11,15 +11,20 @@ android {
         applicationId = "com.financas.dividas"
         minSdk = 28
         targetSdk = 35  // ✅ Usar 34
-        versionCode = 4
-        versionName = "1.3"
+        versionCode = 5
+        versionName = "1.4"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    buildFeatures {
+        buildConfig = true
+    }
+
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -54,6 +59,9 @@ dependencies {
 
     // Splash Screen
     implementation("androidx.core:core-splashscreen:1.2.0")
+
+    // EncryptedSharedPreferences
+    implementation("androidx.security:security-crypto:1.1.0-alpha06")
 
     // AndroidX Core
     implementation("androidx.core:core-ktx:1.12.0")

@@ -2,6 +2,16 @@
 // Depende de: firebase (db, currentUser), dividas, formatarMoeda definidos em app.js
 
 (function () {
+  function escapeHtml(str) {
+    if (!str) return "";
+    return String(str)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;");
+  }
+
   let orcamento = {
     rendaMensal: 0,
     rendasExtras: [],
@@ -12,6 +22,34 @@
   };
 
   let graficoProjecaoInstance = null;
+
+  let debounceSalvarTimer = null;
+  function debounceSalvar() {
+    clearTimeout(debounceSalvarTimer);
+    debounceSalvarTimer = setTimeout(() => {
+      persistirOrcamento();
+      renderTudo();
+      mostrarToastSalvo();
+    }, 800);
+  }
+
+  function mostrarToastSalvo() {
+    let toast = document.getElementById("toastOrcamento");
+    if (!toast) {
+      toast = document.createElement("div");
+      toast.id = "toastOrcamento";
+      toast.className = "toast sucesso";
+      toast.textContent = "Salvo!";
+      document.querySelector(".toast-container")?.appendChild(toast);
+    }
+    toast.style.opacity = "1";
+    toast.style.display = "block";
+    clearTimeout(toast._hideTimer);
+    toast._hideTimer = setTimeout(() => {
+      toast.style.opacity = "0";
+      setTimeout(() => { toast.style.display = "none"; }, 300);
+    }, 1500);
+  }
 
   // ─── Firebase ──────────────────────────────────────────────────────────────
 
@@ -336,15 +374,21 @@
 
   function renderInsights() {
     const insights = gerarInsights();
+    const tipoLabels = {
+      alerta: "Alerta",
+      dica: "Dica",
+      info: "Info",
+      meta: "Meta"
+    };
     document.getElementById("assistente-insights").innerHTML = insights
       .map(
         (i) => `
-      <div class="insight-card tipo-${i.tipo}">
+      <div class="insight-card tipo-${escapeHtml(i.tipo)}">
         <div class="insight-icone">
-          <i data-lucide="${i.icone}" style="width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"></i>
+          <i data-lucide="${escapeHtml(i.icone)}" style="width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"></i>
         </div>
         <div class="insight-texto">
-          <strong>${i.titulo}</strong>${i.texto}
+          <strong>${escapeHtml(tipoLabels[i.tipo] || "")}: ${escapeHtml(i.titulo)}</strong>${escapeHtml(i.texto)}
         </div>
       </div>`
       )
@@ -380,7 +424,23 @@
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        plugins: { legend: { display: false } },
+        interaction: {
+          intersect: false,
+          mode: "index"
+        },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: "rgba(0,0,0,0.8)",
+            titleFont: { size: 12 },
+            bodyFont: { size: 13, weight: "700" },
+            padding: 10,
+            cornerRadius: 8,
+            callbacks: {
+              label: (ctx) => " " + formatarMoeda(ctx.parsed.y)
+            }
+          }
+        },
         scales: {
           y: {
             ticks: {
@@ -435,11 +495,28 @@
     const el = document.getElementById("simulacao-resultado");
     if (!el) return;
 
+    const renda = totalRenda();
+    if (total === 0 && renda === 0) {
+      el.innerHTML = `
+        <div style="text-align:center;padding:24px 16px;color:var(--text-secondary)">
+          <i data-lucide="calculator" style="width:40px;height:40px;stroke:currentColor;fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;margin-bottom:8px;opacity:.4"></i>
+          <div style="font-weight:700;font-size:15px;color:var(--text);margin-bottom:4px">Simulacao indisponivel</div>
+          <div style="font-size:13px;line-height:1.5">
+            Para ver a simulacao, preencha:<br>
+            <strong>1.</strong> Sua renda mensal na aba Orcamento<br>
+            <strong>2.</strong> Pelo menos uma divida ativa
+          </div>
+        </div>`;
+      if (window.lucide) lucide.createIcons();
+      return;
+    }
+
     if (total === 0) {
       el.innerHTML = `
         <div style="text-align:center;padding:20px;color:var(--success)">
           <i data-lucide="party-popper" style="width:40px;height:40px;stroke:currentColor;fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;margin-bottom:8px"></i>
           <div style="font-weight:700;font-size:16px">Sem dividas pendentes!</div>
+          <div style="font-size:13px;color:var(--text-secondary);margin-top:4px">Continue assim!</div>
         </div>`;
       if (window.lucide) lucide.createIcons();
       return;
@@ -493,7 +570,7 @@
         <div class="card" style="margin-bottom:10px;padding:14px">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
             <div>
-              <div style="font-weight:700;font-size:15px">${d.nome}</div>
+              <div style="font-weight:700;font-size:15px">${escapeHtml(d.nome)}</div>
               <div style="font-size:12px;color:var(--text-secondary)">${pagas}/${total} parcelas pagas</div>
             </div>
             <div style="text-align:right">
@@ -535,7 +612,7 @@
           <div style="display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--border-light)">
             <div style="width:28px;height:28px;border-radius:50%;background:var(--gradient);color:white;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex-shrink:0">${i + 1}</div>
             <div style="flex:1">
-              <div style="font-weight:700">${d.nome}</div>
+              <div style="font-weight:700">${escapeHtml(d.nome)}</div>
               ${proxima ? `<div style="font-size:12px;color:var(--text-secondary)">Proxima: ${new Date(proxima.vencimento + "T00:00:00").toLocaleDateString("pt-BR")}</div>` : ""}
             </div>
             <div style="font-weight:700;color:var(--danger)">${formatarMoeda(pendVal)}</div>
@@ -547,6 +624,16 @@
   window.recalcularSimulacao = (extra = 0) => {
     renderSimulacaoExtra(parseFloat(extra) || 0);
   };
+
+  function atualizarSliderMax() {
+    const slider = document.getElementById("extraQuitacaoSlider");
+    if (!slider) return;
+    const total = totalDividasPendentes();
+    const novoMax = Math.max(2000, Math.ceil(total / 6 / 50) * 50);
+    slider.max = novoMax;
+    const labelMax = slider.parentElement?.querySelector("span:last-child");
+    if (labelMax) labelMax.textContent = formatarMoeda(novoMax);
+  }
 
   function renderSimulacaoExtra(extra) {
     const el = document.getElementById("simulacao-extra");
@@ -586,17 +673,23 @@
     const diasNoMes = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0).getDate();
     const diasRestantes = diasNoMes - hoje.getDate();
     const ritmo = gastoHoje();
+    const negativo = restante < 0;
 
     el.innerHTML = `
       <div style="margin-bottom:12px">
         <div class="progresso-label">
           <span>Consumido este mes</span>
-          <span style="color:${percentual > 80 ? "var(--danger)" : "var(--text-secondary)"}">${percentual}%</span>
+          <span style="color:${percentual > 80 || negativo ? "var(--danger)" : "var(--text-secondary)"}">${percentual}%</span>
         </div>
         <div class="progresso-barra">
-          <div class="progresso-preenchimento" style="width:${Math.min(100, percentual)}%;background:${percentual > 80 ? "var(--danger)" : "var(--gradient)"}"></div>
+          <div class="progresso-preenchimento" style="width:${Math.min(100, percentual)}%;background:${percentual > 80 || negativo ? "var(--danger)" : "var(--gradient)"}"></div>
         </div>
       </div>
+      ${negativo ? `
+        <div style="background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.2);border-radius:10px;padding:10px 12px;margin-bottom:10px;display:flex;align-items:center;gap:8px;font-size:13px;color:var(--danger);font-weight:600">
+          <i data-lucide="alert-triangle" style="width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"></i>
+          Saldo negativo no mes! Reveja suas despesas.
+        </div>` : ""}
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
         <div class="indicador-card">
           <div class="indicador-label">Gastado</div>
@@ -615,6 +708,7 @@
           <div class="indicador-valor" style="font-size:15px">${diasRestantes}</div>
         </div>
       </div>`;
+    if (window.lucide) lucide.createIcons();
   }
 
   // ─── Orcamento form ────────────────────────────────────────────────────────
@@ -635,8 +729,7 @@
     orcamento.metaEconomia = parseFloat(document.getElementById("metaEconomia")?.value) || 0;
     orcamento.metaReserva = parseFloat(document.getElementById("metaReserva")?.value) || 0;
     orcamento.reservaAtual = parseFloat(document.getElementById("reservaAtual")?.value) || 0;
-    persistirOrcamento();
-    renderTudo();
+    debounceSalvar();
   };
 
   function renderizarDespesas() {
@@ -654,8 +747,8 @@
             (d, i) => `
           <div class="despesa-item">
             <div>
-              <div class="despesa-nome">${d.nome}</div>
-              <div class="despesa-cat">${d.categoria || ""}</div>
+              <div class="despesa-nome">${escapeHtml(d.nome)}</div>
+              <div class="despesa-cat">${escapeHtml(d.categoria || "")}</div>
             </div>
             <div style="display:flex;align-items:center;gap:10px">
               <span class="despesa-valor">${formatarMoeda(d.valor)}</span>
@@ -679,7 +772,7 @@
       .map(
         (r, i) => `
       <div style="display:flex;gap:8px;align-items:center">
-        <input type="text" value="${r.nome}" placeholder="Descricao"
+        <input type="text" value="${escapeHtml(r.nome)}" placeholder="Descricao"
           style="flex:2;padding:8px;border:1px solid var(--border);border-radius:8px;background:var(--input-bg);color:var(--text);font-size:14px"
           onchange="editarRendaExtra(${i},'nome',this.value)">
         <input type="number" value="${r.valor}" placeholder="Valor"
@@ -715,6 +808,9 @@
   };
 
   window.removerDespesa = (i) => {
+    const desp = orcamento.despesas || [];
+    const nome = desp[i]?.nome || "esta despesa";
+    if (!confirm(`Excluir "${nome}"?`)) return;
     orcamento.despesas.splice(i, 1);
     persistirOrcamento();
     renderizarDespesas();
@@ -733,6 +829,9 @@
   };
 
   window.removerRendaExtra = (i) => {
+    const extras = orcamento.rendasExtras || [];
+    const nome = extras[i]?.nome || "esta renda";
+    if (!confirm(`Excluir "${nome}"?`)) return;
     orcamento.rendasExtras.splice(i, 1);
     persistirOrcamento();
     renderizarRendasExtras();
@@ -746,7 +845,21 @@
     document.querySelectorAll(".assistente-painel").forEach((p) => p.classList.remove("ativo"));
     btn.classList.add("ativo");
     document.getElementById("painel-" + tab)?.classList.add("ativo");
-    if (tab === "simulacao") renderSimulacao();
+    if (tab === "simulacao") {
+      const el = document.getElementById("simulacao-resultado");
+      if (el) {
+        el.innerHTML = `
+          <div style="text-align:center;padding:24px;color:var(--text-secondary)">
+            <div class="spinner" style="width:28px;height:28px;margin:0 auto 8px"></div>
+            <div style="font-size:13px">Carregando simulacao...</div>
+          </div>`;
+      }
+      setTimeout(() => {
+        renderSimulacao();
+        atualizarSliderMax();
+      }, 100);
+    }
+    if (tab === "visao") renderTudo();
   };
 
   // ─── Entry point ───────────────────────────────────────────────────────────

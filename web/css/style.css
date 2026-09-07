@@ -309,6 +309,12 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
+  transition: transform 0.1s, opacity 0.1s;
+}
+
+.btn-sm:active {
+  transform: scale(0.88);
+  opacity: 0.7;
 }
 
 .link {
@@ -390,7 +396,29 @@ body {
   gap: 12px;
   margin-bottom: 25px;
   width: 100%;
+  max-width: 100%;
+  overflow: hidden;
 }
+
+.resumo-cards .card {
+  min-width: 0;
+  overflow: hidden;
+  padding: 14px 12px;
+}
+
+.resumo-cards .card .valor {
+  font-size: 18px;
+}
+
+.resumo-cards .card {
+  opacity: 0;
+  animation: cardEntrar 0.3s ease forwards;
+}
+
+.resumo-cards .card:nth-child(1) { animation-delay: 0s; }
+.resumo-cards .card:nth-child(2) { animation-delay: 0.06s; }
+.resumo-cards .card:nth-child(3) { animation-delay: 0.12s; }
+.resumo-cards .card:nth-child(4) { animation-delay: 0.18s; }
 
 .card {
   transition: transform 0.2s ease, box-shadow 0.2s ease;
@@ -405,16 +433,17 @@ body {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
   color: var(--text-secondary);
-  margin-bottom: 6px;
+  margin-bottom: 4px;
 }
 
 .card .valor {
   font-size: 24px;
   font-weight: 700;
   color: var(--text);
+  word-break: break-word;
 }
 
 .card-progresso-geral {
@@ -1346,6 +1375,12 @@ body {
   grid-template-columns: repeat(2, 1fr);
   gap: 12px;
   margin-bottom: 25px;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.skeleton-resumo-cards .skeleton-card {
+  min-width: 0;
 }
 
 /* ============================================
@@ -1366,6 +1401,18 @@ body {
 
 .form-group.com-erro .form-erro-texto {
   display: block;
+}
+
+.form-group.com-erro {
+  animation: shakeError 0.4s ease;
+}
+
+@keyframes shakeError {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-6px); }
+  40% { transform: translateX(6px); }
+  60% { transform: translateX(-4px); }
+  80% { transform: translateX(4px); }
 }
 
 /* ============================================
@@ -1838,4 +1885,38 @@ input[type="range"]::-webkit-slider-thumb {
   background: var(--gradient);
   cursor: pointer;
   box-shadow: 0 2px 6px rgba(91,108,255,.4);
+}
+
+/* ============================================
+   ANIMACAO DE ENTRADA DOS INDICADORES
+   ============================================ */
+@keyframes cardEntrar {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.indicador-card {
+  animation: cardEntrar 0.3s ease forwards;
+}
+
+.indicadores-grid .indicador-card:nth-child(1) { animation-delay: 0s; }
+.indicadores-grid .indicador-card:nth-child(2) { animation-delay: 0.05s; }
+.indicadores-grid .indicador-card:nth-child(3) { animation-delay: 0.1s; }
+.indicadores-grid .indicador-card:nth-child(4) { animation-delay: 0.15s; }
+.indicadores-grid .indicador-card:nth-child(5) { animation-delay: 0.2s; }
+.indicadores-grid .indicador-card:nth-child(6) { animation-delay: 0.25s; }
+
+.insight-card {
+  animation: cardEntrar 0.3s ease forwards;
+}
+
+.insight-lista .insight-card:nth-child(1) { animation-delay: 0s; }
+.insight-lista .insight-card:nth-child(2) { animation-delay: 0.06s; }
+.insight-lista .insight-card:nth-child(3) { animation-delay: 0.12s; }
+.insight-lista .insight-card:nth-child(4) { animation-delay: 0.18s; }
+.insight-lista .insight-card:nth-child(5) { animation-delay: 0.24s; }
+
+/* toast de salvamento */
+#toastOrcamento {
+  transition: opacity 0.3s ease;
 }

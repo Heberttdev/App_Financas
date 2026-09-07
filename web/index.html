@@ -22,8 +22,8 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-title" content="Dívidas" />
 
-    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="https://unpkg.com/lucide@0.344.0/dist/umd/lucide.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js" crossorigin="anonymous"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
@@ -225,7 +225,7 @@
               <i data-lucide="sun" class="icon icon-sm icon-sun"></i>
               <i data-lucide="moon" class="icon icon-sm icon-moon"></i>
             </button>
-            <button class="logout-btn" onclick="logout()">
+            <button class="logout-btn" onclick="if(confirm('Tem certeza que deseja sair?'))logout()">
               <i data-lucide="log-out" class="icon icon-sm"></i> Sair
             </button>
           </div>

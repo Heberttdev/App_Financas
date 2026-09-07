@@ -40,6 +40,8 @@ import kotlinx.coroutines.*
 import org.json.JSONObject
 import java.net.URL
 import java.util.concurrent.TimeUnit
+import androidx.security.crypto.EncryptedSharedPreferences
+import androidx.security.crypto.MasterKey
 
 class MainActivity : AppCompatActivity() {
 
@@ -52,12 +54,28 @@ class MainActivity : AppCompatActivity() {
     private val permissaoNotificacaoLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { concedida ->
-        android.util.Log.d(TAG, "Permissão de notificação concedida: $concedida")
+        if (BuildConfig.DEBUG) android.util.Log.d(TAG, "Permissao concedida: $concedida")
     }
 
     companion object {
         private const val RC_SIGN_IN = 9001
         private const val TAG = "FirebaseAuth"
+        private const val PREFS_NAME = "secure_app"
+        private const val ALLOWED_HOST = "financas-f371a.web.app"
+    }
+
+    private fun getEncryptedPrefs(): android.content.SharedPreferences {
+        val masterKey = MasterKey.Builder(this)
+            .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+            .build()
+
+        return EncryptedSharedPreferences.create(
+            this,
+            PREFS_NAME,
+            masterKey,
+            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+        )
     }
 
     private fun solicitarPermissaoNotificacao() {
@@ -126,12 +144,13 @@ class MainActivity : AppCompatActivity() {
     private fun configurarWebView() {
         webView.settings.javaScriptEnabled = true
         webView.settings.domStorageEnabled = true
-        webView.settings.allowFileAccess = true
         webView.settings.setSupportZoom(false)
         webView.settings.useWideViewPort = true
         webView.settings.loadWithOverviewMode = true
-        webView.settings.javaScriptCanOpenWindowsAutomatically = true
         webView.settings.loadsImagesAutomatically = true
+        webView.settings.allowFileAccess = false
+        webView.settings.allowContentAccess = false
+        webView.settings.javaScriptCanOpenWindowsAutomatically = false
 
         // 🔑 Interface Android com nome "Android"
         webView.addJavascriptInterface(AndroidBridge(), "Android")
@@ -141,18 +160,18 @@ class MainActivity : AppCompatActivity() {
                 view: WebView?,
                 request: WebResourceRequest?
             ): Boolean {
-                val url = request?.url.toString()
+                val url = request?.url
+                val host = url?.host ?: return true
 
-                if (url.startsWith("https://financas-f371a.web.app") ||
-                    url.startsWith("https://www.financas-f371a.web.app")) {
+                if (host == ALLOWED_HOST || host == "www.$ALLOWED_HOST") {
                     return false
                 }
 
                 try {
-                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url.toString()))
                     startActivity(intent)
                 } catch (e: Exception) {
-                    e.printStackTrace()
+                    if (BuildConfig.DEBUG) e.printStackTrace()
                 }
                 return true
             }
@@ -225,16 +244,25 @@ class MainActivity : AppCompatActivity() {
     // ============================================
     inner class AndroidBridge {
 
+        private fun isOriginValid(): Boolean {
+            var valid = false
+            webView.evaluateJavascript("window.location.origin") { origin ->
+                val cleanOrigin = origin?.replace("\"", "") ?: ""
+                valid = cleanOrigin == "https://financas-f371a.web.app"
+            }
+            return valid
+        }
+
         @JavascriptInterface
         fun signInWithGoogle() {
-            android.util.Log.d(TAG, "🔑 signInWithGoogle chamado do JavaScript")
+            if (BuildConfig.DEBUG) android.util.Log.d(TAG, "signInWithGoogle chamado")
             val signInIntent = googleSignInClient.signInIntent
             startActivityForResult(signInIntent, RC_SIGN_IN)
         }
 
         @JavascriptInterface
         fun signOut() {
-            android.util.Log.d(TAG, "🚪 signOut chamado do JavaScript")
+            if (BuildConfig.DEBUG) android.util.Log.d(TAG, "signOut chamado")
             auth.signOut()
             googleSignInClient.signOut().addOnCompleteListener {
                 runOnUiThread {
@@ -248,8 +276,8 @@ class MainActivity : AppCompatActivity() {
 
         @JavascriptInterface
         fun salvarUid(uid: String) {
-            android.util.Log.d(TAG, "📱 UID salvo: $uid")
-            getSharedPreferences("app", MODE_PRIVATE)
+            if (BuildConfig.DEBUG) android.util.Log.d(TAG, "UID salvo")
+            getEncryptedPrefs()
                 .edit()
                 .putString("uid", uid)
                 .apply()
@@ -257,7 +285,33 @@ class MainActivity : AppCompatActivity() {
 
         @JavascriptInterface
         fun mostrarNotificacao(titulo: String, mensagem: String) {
-            android.util.Log.d(TAG, "🔔 Notificação: $titulo - $mensagem")
+            if (BuildConfig.DEBUG) android.util.Log.d(TAG, "Notificacao: $titulo")
+            criarCanalNotificacao()
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                val temPermissao = ContextCompat.checkSelfPermission(
+                    this@MainActivity,
+                    Manifest.permission.POST_NOTIFICATIONS
+                ) == PackageManager.PERMISSION_GRANTED
+                if (!temPermissao) return
+            }
+
+            val notification = androidx.core.app.NotificationCompat.Builder(
+                this@MainActivity,
+                "dividas_channel"
+            )
+                .setSmallIcon(R.mipmap.ic_launcher)
+                .setContentTitle(titulo)
+                .setContentText(mensagem)
+                .setPriority(androidx.core.app.NotificationCompat.PRIORITY_HIGH)
+                .setAutoCancel(true)
+                .setStyle(
+                    androidx.core.app.NotificationCompat.BigTextStyle().bigText(mensagem)
+                )
+                .build()
+
+            val manager = getSystemService(Context.NOTIFICATION_SERVICE) as android.app.NotificationManager
+            manager.notify(System.currentTimeMillis().toInt(), notification)
         }
 
         @JavascriptInterface
@@ -276,17 +330,17 @@ class MainActivity : AppCompatActivity() {
             try {
                 val task = GoogleSignIn.getSignedInAccountFromIntent(data)
                 val account = task.getResult(ApiException::class.java)
-                android.util.Log.d(TAG, "✅ Login Google sucesso: ${account?.email}")
+                if (BuildConfig.DEBUG) android.util.Log.d(TAG, "Login Google OK")
 
                 account?.idToken?.let { idToken ->
-                    firebaseAuthWithGoogle(idToken, idToken)
+                    firebaseAuthWithGoogle(idToken)
                 } ?: run {
-                    enviarErroJavaScript("Token do Google não encontrado")
+                    enviarErroJavaScript("Token do Google nao encontrado")
                 }
 
             } catch (e: ApiException) {
-                android.util.Log.e(TAG, "❌ Erro no login Google", e)
-                enviarErroJavaScript("Erro ao fazer login: ${e.message}")
+                if (BuildConfig.DEBUG) android.util.Log.e(TAG, "Erro no login", e)
+                enviarErroJavaScript("Erro ao fazer login")
             }
         }
     }
@@ -294,16 +348,16 @@ class MainActivity : AppCompatActivity() {
     // ============================================
     // AUTENTICAR NO FIREBASE
     // ============================================
-    private fun firebaseAuthWithGoogle(idToken: String, googleIdToken: String) {
+    private fun firebaseAuthWithGoogle(idToken: String) {
         val credential = GoogleAuthProvider.getCredential(idToken, null)
 
         auth.signInWithCredential(credential)
             .addOnCompleteListener(this) { task ->
                 if (task.isSuccessful) {
                     val user = auth.currentUser
-                    enviarUsuarioJavaScript(user, googleIdToken)
+                    enviarUsuarioJavaScript(user)
                 } else {
-                    enviarErroJavaScript("Erro na autenticação Firebase: ${task.exception?.message}")
+                    enviarErroJavaScript("Erro na autenticacao Firebase")
                 }
             }
     }
@@ -314,19 +368,17 @@ class MainActivity : AppCompatActivity() {
     private fun verificarUsuarioLogado() {
         val user = auth.currentUser
         if (user != null) {
-            android.util.Log.d(TAG, "✅ Usuário já logado: ${user.email}")
+            if (BuildConfig.DEBUG) android.util.Log.d(TAG, "Usuario logado")
             enviarUsuarioJavaScript(user)
-        } else {
-            android.util.Log.d(TAG, "ℹ️ Nenhum usuário logado")
         }
     }
 
     // ============================================
     // ⭐ FUNÇÃO PRINCIPAL - ENVIAR USUÁRIO PARA JS
     // ============================================
-    private fun enviarUsuarioJavaScript(user: FirebaseUser?, googleIdToken: String = "") {
+    private fun enviarUsuarioJavaScript(user: FirebaseUser?) {
         if (user == null) {
-            getSharedPreferences("app", MODE_PRIVATE)
+            getEncryptedPrefs()
                 .edit()
                 .remove("uid")
                 .apply()
@@ -341,12 +393,12 @@ class MainActivity : AppCompatActivity() {
         }
 
         try {
-            getSharedPreferences("app", MODE_PRIVATE)
+            getEncryptedPrefs()
                 .edit()
                 .putString("uid", user.uid)
                 .apply()
         } catch (e: Exception) {
-            android.util.Log.e(TAG, "Erro ao salvar UID", e)
+            if (BuildConfig.DEBUG) android.util.Log.e(TAG, "Erro ao salvar UID", e)
         }
 
         user.getIdToken(true)
@@ -358,7 +410,6 @@ class MainActivity : AppCompatActivity() {
                         put("email", user.email ?: "")
                         put("photoURL", user.photoUrl?.toString() ?: "")
                         put("providerId", user.providerId)
-                        put("idToken", googleIdToken) // Google ID token para o Web SDK
                     }
 
                     val escapedJson = jsonUser.toString().replace("'", "\\'")
@@ -382,7 +433,7 @@ class MainActivity : AppCompatActivity() {
     // ENVIAR ERRO PARA O JAVASCRIPT
     // ============================================
     private fun enviarErroJavaScript(message: String) {
-        android.util.Log.e(TAG, "❌ Enviando erro para JS: $message")
+        if (BuildConfig.DEBUG) android.util.Log.e(TAG, "Erro JS: $message")
         val escapedMessage = message.replace("'", "\\'")
         runOnUiThread {
             webView.evaluateJavascript(
@@ -440,11 +491,20 @@ class MainActivity : AppCompatActivity() {
     private fun verificarAtualizacao() {
         CoroutineScope(Dispatchers.IO).launch {
             try {
-                val json = URL("https://financas-f371a.web.app/version.json").readText()
+                val url = URL("https://financas-f371a.web.app/version.json")
+                val connection = url.openConnection()
+                connection.connectTimeout = 10000
+                connection.readTimeout = 10000
+                val json = connection.getInputStream().bufferedReader().use { it.readText() }
                 val obj = JSONObject(json)
                 val versionCodeServidor = obj.getInt("versionCode")
                 val versionNameServidor = obj.getString("versionName")
                 val apkUrl = obj.getString("apkUrl")
+
+                if (!apkUrl.startsWith("https://")) {
+                    if (BuildConfig.DEBUG) android.util.Log.w(TAG, "URL de APK insegura")
+                    return@launch
+                }
 
                 val versionCodeLocal = packageManager.getPackageInfo(packageName, 0)
                     .longVersionCode.toInt()
@@ -452,8 +512,8 @@ class MainActivity : AppCompatActivity() {
                 if (versionCodeServidor > versionCodeLocal) {
                     withContext(Dispatchers.Main) {
                         AlertDialog.Builder(this@MainActivity)
-                            .setTitle("🔄 Nova versão disponível")
-                            .setMessage("Versão $versionNameServidor disponível para download.")
+                            .setTitle("Nova versao disponivel")
+                            .setMessage("Versao $versionNameServidor disponivel para download.")
                             .setCancelable(false)
                             .setPositiveButton("Atualizar") { _, _ ->
                                 startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(apkUrl)))
@@ -463,7 +523,7 @@ class MainActivity : AppCompatActivity() {
                     }
                 }
             } catch (e: Exception) {
-                e.printStackTrace()
+                if (BuildConfig.DEBUG) e.printStackTrace()
             }
         }
     }

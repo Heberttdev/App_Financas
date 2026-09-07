@@ -20,13 +20,10 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
 
     override fun onNewToken(token: String) {
         super.onNewToken(token)
-        android.util.Log.d(TAG, "🆕 Novo token FCM: $token")
-        // Salvar token no Firebase se necessário
     }
 
     override fun onMessageReceived(message: RemoteMessage) {
         super.onMessageReceived(message)
-        android.util.Log.d(TAG, "📨 Mensagem recebida: ${message.notification?.title}")
 
         criarCanalNotificacao()
 
@@ -41,7 +38,6 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
             ) == PackageManager.PERMISSION_GRANTED
 
             if (!hasPermission) {
-                android.util.Log.w(TAG, "⚠️ Sem permissão para notificações")
                 return
             }
         }
