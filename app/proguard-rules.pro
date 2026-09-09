@@ -16,3 +16,20 @@
 
 # Keep Kotlin metadata
 -keepattributes *Annotation*
+
+# Keep Tink (EncryptedSharedPreferences uses reflection with hardcoded class names)
+-keep class com.google.crypto.tink.** { *; }
+-dontwarn com.google.crypto.tink.**
+-keep class androidx.security.crypto.** { *; }
+-keepclassmembers class * extends com.google.crypto.tink.shaded.protobuf.GeneratedMessageLite { *; }
+
+# Keep Room _Impl classes with empty constructor (WorkManager/WorkDatabase initializes via reflection)
+-keep class * extends androidx.room.RoomDatabase {
+    <init>();
+}
+-keepclassmembers class * extends androidx.room.RoomDatabase {
+    *;
+}
+-keep class androidx.work.impl.WorkDatabase_Impl {
+    <init>();
+}
