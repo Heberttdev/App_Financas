@@ -231,6 +231,51 @@
     if (window.lucide) lucide.createIcons();
   }
 
+  function gerarPlanoAcao() {
+    const acoes = [];
+    const divs = window.getDividas ? window.getDividas() : [];
+    const hoje = new Date();
+    hoje.setHours(0, 0, 0, 0);
+    const atrasadas = divs.flatMap((d) => (d.parcelas || []).map((p) => ({ ...p, nome: d.nome })))
+      .filter((p) => p.status === "pendente" && new Date(p.vencimento) < hoje);
+    const saldo = saldoDisponivel();
+    const renda = totalRenda();
+    const reservaAtual = orcamento.reservaAtual || 0;
+    const metaReserva = orcamento.metaReserva || 0;
+
+    if (!renda) {
+      acoes.push({ icone: "wallet", titulo: "Informe sua renda mensal", texto: "Com esse dado o Assistente calcula sua margem real e evita recomendações genéricas.", urgente: false });
+    }
+    if (atrasadas.length) {
+      const total = atrasadas.reduce((s, p) => s + (p.valor || 0), 0);
+      acoes.push({ icone: "alert-triangle", titulo: `Regularize ${atrasadas.length} parcela(s) atrasada(s)`, texto: `${formatarMoeda(total)} em atraso. Priorize negociar juros antes de investir qualquer sobra.`, urgente: true });
+    }
+    if (saldo < 0) {
+      acoes.push({ icone: "scissors", titulo: "Reequilibre o orçamento", texto: `Faltam ${formatarMoeda(Math.abs(saldo))} para fechar o mês. Pause gastos não essenciais e revise despesas fixas.`, urgente: true });
+    } else if (saldo > 0 && metaReserva > reservaAtual) {
+      const aporte = Math.min(saldo, Math.max(50, (metaReserva - reservaAtual) / 6));
+      acoes.push({ icone: "shield-check", titulo: "Faça um aporte para a reserva", texto: `Separe cerca de ${formatarMoeda(aporte)} este mês antes de buscar maior rentabilidade.`, urgente: false });
+    }
+    if (saldo > 0 && !atrasadas.length && metaReserva <= reservaAtual) {
+      acoes.push({ icone: "trending-up", titulo: "Faça o dinheiro parado trabalhar", texto: "Depois da reserva e das dívidas caras, compare opções de baixo risco, liquidez e rentabilidade líquida.", urgente: false });
+    }
+    if (!acoes.length) {
+      acoes.push({ icone: "check-circle", titulo: "Continue no ritmo atual", texto: "Não há alertas críticos. Revise o orçamento semanalmente e mantenha seus vencimentos em dia.", urgente: false });
+    }
+    return acoes.slice(0, 3);
+  }
+
+  function renderPlanoAcao() {
+    const el = document.getElementById("assistente-acoes");
+    if (!el) return;
+    el.innerHTML = gerarPlanoAcao().map((acao) => `
+      <div class="acao-financeira ${acao.urgente ? "urgente" : ""}">
+        <div class="acao-financeira-icone"><i data-lucide="${escapeHtml(acao.icone)}" class="icon icon-sm"></i></div>
+        <div><strong>${escapeHtml(acao.titulo)}</strong><span>${escapeHtml(acao.texto)}</span></div>
+      </div>`).join("");
+    if (window.lucide) lucide.createIcons();
+  }
+
   function renderReserva() {
     const pct = percentualReserva();
     const atual = orcamento.reservaAtual || 0;
@@ -341,6 +386,15 @@
           icone: "piggy-bank",
           titulo: "Defina uma meta de economia",
           texto: `Voce tem ${formatarMoeda(saldo)} de saldo livre. Estabelecer uma meta mensal garante progresso consistente.`,
+        });
+      }
+
+      if (saldo > 0 && (orcamento.metaReserva || 0) <= (orcamento.reservaAtual || 0)) {
+        insights.push({
+          tipo: "dica",
+          icone: "line-chart",
+          titulo: "Rentabilize com segurança",
+          texto: "Com as contas em dia, priorize uma reserva de liquidez e baixo risco. Compare sempre custos, prazo, resgate e rentabilidade líquida; desconfie de retorno alto garantido.",
         });
       }
 
@@ -724,6 +778,33 @@
     if (ra) ra.value = orcamento.reservaAtual || "";
   }
 
+  function carregarPreferenciaNotificacao() {
+    const select = document.getElementById("antecedenciaNotificacao");
+    let valor = localStorage.getItem("antecedenciaNotificacao") || "1";
+    if (window.Android && typeof window.Android.getAntecedenciaNotificacao === "function") {
+      valor = String(window.Android.getAntecedenciaNotificacao());
+    }
+    valor = ["0", "1", "3", "7"].includes(valor) ? valor : "1";
+    if (select) select.value = valor;
+    const configSelect = document.getElementById("configAntecedenciaNotificacao");
+    if (configSelect) configSelect.value = valor;
+  }
+
+  window.salvarPreferenciaNotificacao = (valor) => {
+    const dias = [0, 1, 3, 7].includes(Number(valor)) ? Number(valor) : 1;
+    localStorage.setItem("antecedenciaNotificacao", String(dias));
+    const assistenteSelect = document.getElementById("antecedenciaNotificacao");
+    const configSelect = document.getElementById("configAntecedenciaNotificacao");
+    if (assistenteSelect) assistenteSelect.value = String(dias);
+    if (configSelect) configSelect.value = String(dias);
+    if (window.Android && typeof window.Android.salvarAntecedenciaNotificacao === "function") {
+      window.Android.salvarAntecedenciaNotificacao(dias);
+    }
+    if (window.mostrarToast) window.mostrarToast("Preferência de lembrete salva", "sucesso");
+  };
+
+  window.carregarPreferenciaNotificacao = carregarPreferenciaNotificacao;
+
   window.salvarOrcamento = () => {
     orcamento.rendaMensal = parseFloat(document.getElementById("rendaMensal")?.value) || 0;
     orcamento.metaEconomia = parseFloat(document.getElementById("metaEconomia")?.value) || 0;
@@ -841,9 +922,13 @@
   // ─── Tabs ──────────────────────────────────────────────────────────────────
 
   window.abrirTabAssistente = (tab, btn) => {
-    document.querySelectorAll(".assistente-tab").forEach((b) => b.classList.remove("ativo"));
+    document.querySelectorAll(".assistente-tab").forEach((b) => {
+      b.classList.remove("ativo");
+      b.setAttribute("aria-selected", "false");
+    });
     document.querySelectorAll(".assistente-painel").forEach((p) => p.classList.remove("ativo"));
     btn.classList.add("ativo");
+    btn.setAttribute("aria-selected", "true");
     document.getElementById("painel-" + tab)?.classList.add("ativo");
     if (tab === "simulacao") {
       const el = document.getElementById("simulacao-resultado");
@@ -860,19 +945,207 @@
       }, 100);
     }
     if (tab === "visao") renderTudo();
+    if (tab === "chat" && window.lucide) lucide.createIcons();
+  };
+
+
+  // --- Chat IA (Groq via Cloudflare Worker) ---
+
+  const WORKER_URL_KEY = 'groq_worker_url';
+  let historicoMensagensChat = [];
+
+  function getWorkerUrl() {
+    return localStorage.getItem(WORKER_URL_KEY) || 'https://groq-proxy.bahiacruz0.workers.dev';
+  }
+
+  window.setWorkerUrl = (url) => {
+    localStorage.setItem(WORKER_URL_KEY, url.trim());
+    console.log('Worker URL salva:', url.trim());
+  };
+
+  function coletarContextoFinanceiro() {
+    const renda = totalRenda();
+    const despesas = totalDespesasFixas();
+    const dividas = totalDividasPendentes();
+    const parcelas = parcelaMensalTotal();
+    const saldo = saldoDisponivel();
+    const gasto = gastoHoje();
+
+    const fmt = (v) => typeof window.formatarMoeda === 'function'
+      ? window.formatarMoeda(v)
+      : 'R$ ' + v.toFixed(2);
+
+    const listaDiv = (window.getDividas ? window.getDividas() : [])
+      .filter(d => d.status !== 'paga')
+      .slice(0, 8)
+      .map(d => {
+        const nome = d.nome || d.descricao || 'Divida';
+        const val = fmt(d.valorTotal || d.valor || 0);
+        const parc = d.parcelas ? ' -- ' + d.parcelas + 'x' : '';
+        return '* ' + nome + ': ' + val + parc;
+      })
+      .join('\n');
+
+    return [
+      'Contexto financeiro do usuario:',
+      '- Renda mensal total: ' + fmt(renda),
+      '- Despesas fixas: ' + fmt(despesas),
+      '- Total em dividas pendentes: ' + fmt(dividas),
+      '- Parcelas mensais: ' + fmt(parcelas),
+      '- Saldo disponivel estimado: ' + fmt(saldo),
+      '- Gasto hoje: ' + fmt(gasto),
+      '',
+      'Dividas em aberto:',
+      listaDiv || 'Nenhuma divida cadastrada.'
+    ].join('\n');
+  }
+
+  function rolarChatParaFim() {
+    const c = document.getElementById('chatMensagens');
+    if (c) c.scrollTop = c.scrollHeight;
+  }
+
+  function adicionarMensagemNaTela(texto, autor) {
+    const container = document.getElementById('chatMensagens');
+    if (!container) return null;
+
+    const wrapper = document.createElement('div');
+    wrapper.className = 'chat-mensagem ' + autor;
+
+    const avatar = document.createElement('div');
+    avatar.className = 'chat-avatar';
+    avatar.innerHTML = autor === 'assistente'
+      ? '<i data-lucide="bot" class="icon icon-sm"></i>'
+      : '<i data-lucide="user" class="icon icon-sm"></i>';
+
+    const balao = document.createElement('div');
+    balao.className = 'chat-balao';
+    balao.innerHTML = escapeHtml(texto)
+      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+      .replace(/\n/g, '<br>');
+
+    wrapper.appendChild(avatar);
+    wrapper.appendChild(balao);
+    container.appendChild(wrapper);
+
+    if (window.lucide) lucide.createIcons({ nodes: [avatar] });
+    rolarChatParaFim();
+    return balao;
+  }
+
+  // Firebase ID token para o Worker: SDK web, ou o login nativo do app Android
+  async function obterIdToken() {
+    const u = window.firebase && firebase.auth().currentUser;
+    if (u) return u.getIdToken();
+    if (window.Android && typeof Android.getIdToken === 'function') {
+      return Android.getIdToken() || null;
+    }
+    return null;
+  }
+
+  window.enviarPerguntaChip = (texto) => {
+    const input = document.getElementById('chatInput');
+    if (input) { input.value = texto; input.focus(); }
+    window.enviarMensagemChat();
+  };
+
+  window.enviarMensagemChat = async () => {
+    const workerUrl = getWorkerUrl();
+    const input = document.getElementById('chatInput');
+    const btnEnviar = document.getElementById('btnEnviarChat');
+    if (!input) return;
+
+    const mensagem = input.value.trim();
+    if (!mensagem) return;
+
+    if (!workerUrl) {
+      adicionarMensagemNaTela(
+        'Nenhum Worker configurado.\n\nNo console do navegador execute:\n\nwindow.setWorkerUrl("https://seu-worker.workers.dev")',
+        'assistente'
+      );
+      return;
+    }
+
+    adicionarMensagemNaTela(mensagem, 'usuario');
+    input.value = '';
+    if (btnEnviar) btnEnviar.disabled = true;
+
+    historicoMensagensChat.push({ role: 'user', content: mensagem });
+
+    // Indicador de digitacao
+    const container = document.getElementById('chatMensagens');
+    const typing = document.createElement('div');
+    typing.className = 'chat-mensagem assistente chat-typing';
+    const dot = '<span style="width:7px;height:7px;border-radius:50%;background:var(--text-secondary);display:inline-block"></span>';
+    typing.innerHTML =
+      '<div class="chat-avatar"><i data-lucide="bot" class="icon icon-sm"></i></div>' +
+      '<div class="chat-balao" style="display:flex;gap:5px;align-items:center">' + dot + dot + dot + '</div>';
+    if (container) container.appendChild(typing);
+    if (window.lucide) lucide.createIcons({ nodes: [typing] });
+    rolarChatParaFim();
+
+    try {
+      const idToken = await obterIdToken();
+      if (!idToken) throw new Error('Faca login novamente para usar o assistente.');
+
+      const contexto = coletarContextoFinanceiro();
+      const resp = await fetch(workerUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + idToken,
+        },
+        body: JSON.stringify({
+          contexto: contexto,
+          historico: historicoMensagensChat.slice(-10),
+        }),
+      });
+
+      if (container && typing.parentNode === container) container.removeChild(typing);
+
+      if (!resp.ok) {
+        const errJson = await resp.json().catch(() => ({}));
+        throw new Error(errJson.error || 'HTTP ' + resp.status);
+      }
+
+      const data = await resp.json();
+      const resposta = data.resposta || data.content || 'Nao obtive resposta.';
+      adicionarMensagemNaTela(resposta, 'assistente');
+      historicoMensagensChat.push({ role: 'assistant', content: resposta });
+
+    } catch (err) {
+      if (container && typing.parentNode === container) container.removeChild(typing);
+      adicionarMensagemNaTela(
+        'Erro ao conectar: ' + err.message + '\n\nVerifique a URL do Worker.',
+        'assistente'
+      );
+      console.error('[Chat IA]', err);
+    } finally {
+      if (btnEnviar) btnEnviar.disabled = false;
+      if (input) input.focus();
+    }
   };
 
   // ─── Entry point ───────────────────────────────────────────────────────────
 
   function renderTudo() {
     renderIndicadores();
+    renderPlanoAcao();
     renderReserva();
     renderInsights();
-    renderGraficoProjecao();
+    const detalhes = document.querySelector(".assistente-detalhes");
+    if (detalhes && !detalhes.dataset.graficoListener) {
+      detalhes.addEventListener("toggle", () => {
+        if (detalhes.open) renderGraficoProjecao();
+      });
+      detalhes.dataset.graficoListener = "true";
+    }
+    if (detalhes?.open) renderGraficoProjecao();
   }
 
   window.iniciarAssistente = async () => {
     await carregarOrcamento();
+    carregarPreferenciaNotificacao();
     renderTudo();
   };
 })();

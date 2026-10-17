@@ -32,6 +32,7 @@ import com.google.android.gms.auth.api.signin.GoogleSignInAccount
 import com.google.android.gms.auth.api.signin.GoogleSignInClient
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions
 import com.google.android.gms.common.api.ApiException
+import com.google.android.gms.tasks.Tasks
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.GoogleAuthProvider
 import com.google.firebase.auth.FirebaseUser
@@ -48,6 +49,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var swipeRefresh: SwipeRefreshLayout
     private lateinit var progressBar: ProgressBar
     private lateinit var webView: WebView
+    private lateinit var skeletonOverlay: View
+    private var skeletonAnimator: android.animation.ObjectAnimator? = null
     private lateinit var auth: FirebaseAuth
     private lateinit var googleSignInClient: GoogleSignInClient
 
@@ -62,6 +65,16 @@ class MainActivity : AppCompatActivity() {
         private const val TAG = "FirebaseAuth"
         private const val PREFS_NAME = "secure_app"
         private const val ALLOWED_HOST = "financas-f371a.web.app"
+        private const val APK_URL_PREFIX = "https://github.com/Heberttdev/App_Financas/releases/download/"
+    }
+
+    // URL da página principal atual; a ponte JS só responde quando ela é do nosso domínio
+    @Volatile
+    private var urlAtual: Uri? = null
+
+    private fun origemPermitida(): Boolean {
+        val url = urlAtual ?: return false
+        return url.scheme == "https" && (url.host == ALLOWED_HOST || url.host == "www.$ALLOWED_HOST")
     }
 
     private fun getEncryptedPrefs(): android.content.SharedPreferences {
@@ -117,8 +130,12 @@ class MainActivity : AppCompatActivity() {
         progressBar = findViewById(R.id.progressBar)
         webView = findViewById(R.id.webview)
         swipeRefresh = findViewById(R.id.swipeRefresh)
+        skeletonOverlay = findViewById(R.id.skeletonOverlay)
+
+        mostrarSkeleton()
 
         swipeRefresh.setOnRefreshListener {
+            mostrarSkeleton()
             webView.reload()
         }
 
@@ -139,6 +156,33 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         )
+    }
+
+    private fun mostrarSkeleton() {
+        if (!::skeletonOverlay.isInitialized) return
+        skeletonOverlay.visibility = View.VISIBLE
+        skeletonOverlay.alpha = 1f
+        if (skeletonAnimator == null) {
+            skeletonAnimator = android.animation.ObjectAnimator.ofFloat(
+                skeletonOverlay, View.ALPHA, 1f, 0.55f, 1f
+            ).apply {
+                duration = 1100
+                repeatCount = android.animation.ValueAnimator.INFINITE
+                repeatMode = android.animation.ValueAnimator.REVERSE
+            }
+        }
+        if (skeletonAnimator?.isRunning != true) skeletonAnimator?.start()
+    }
+
+    private fun esconderSkeleton() {
+        if (!::skeletonOverlay.isInitialized) return
+        if (skeletonOverlay.visibility != View.VISIBLE) return
+        skeletonAnimator?.cancel()
+        skeletonOverlay.animate()
+            .alpha(0f)
+            .setDuration(250)
+            .withEndAction { skeletonOverlay.visibility = View.GONE }
+            .start()
     }
 
     private fun configurarWebView() {
@@ -176,9 +220,22 @@ class MainActivity : AppCompatActivity() {
                 return true
             }
 
+            override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
+                urlAtual = url?.let { Uri.parse(it) }
+                super.onPageStarted(view, url, favicon)
+                mostrarSkeleton()
+            }
+
+            override fun doUpdateVisitedHistory(view: WebView?, url: String?, isReload: Boolean) {
+                urlAtual = url?.let { Uri.parse(it) }
+                super.doUpdateVisitedHistory(view, url, isReload)
+            }
+
             override fun onPageFinished(view: WebView?, url: String?) {
                 swipeRefresh.isRefreshing = false
                 super.onPageFinished(view, url)
+                // Pequeno delay para o boot skeleton web assumir sem flash branco
+                webView.postDelayed({ esconderSkeleton() }, 400)
                 verificarUsuarioLogado()
             }
 
@@ -226,6 +283,7 @@ class MainActivity : AppCompatActivity() {
                         "text/html",
                         "UTF-8"
                     )
+                    esconderSkeleton()
                 }
             }
         }
@@ -244,17 +302,9 @@ class MainActivity : AppCompatActivity() {
     // ============================================
     inner class AndroidBridge {
 
-        private fun isOriginValid(): Boolean {
-            var valid = false
-            webView.evaluateJavascript("window.location.origin") { origin ->
-                val cleanOrigin = origin?.replace("\"", "") ?: ""
-                valid = cleanOrigin == "https://financas-f371a.web.app"
-            }
-            return valid
-        }
-
         @JavascriptInterface
         fun signInWithGoogle() {
+            if (!origemPermitida()) return
             if (BuildConfig.DEBUG) android.util.Log.d(TAG, "signInWithGoogle chamado")
             val signInIntent = googleSignInClient.signInIntent
             startActivityForResult(signInIntent, RC_SIGN_IN)
@@ -262,6 +312,7 @@ class MainActivity : AppCompatActivity() {
 
         @JavascriptInterface
         fun signOut() {
+            if (!origemPermitida()) return
             if (BuildConfig.DEBUG) android.util.Log.d(TAG, "signOut chamado")
             auth.signOut()
             googleSignInClient.signOut().addOnCompleteListener {
@@ -276,6 +327,7 @@ class MainActivity : AppCompatActivity() {
 
         @JavascriptInterface
         fun salvarUid(uid: String) {
+            if (!origemPermitida()) return
             if (BuildConfig.DEBUG) android.util.Log.d(TAG, "UID salvo")
             getEncryptedPrefs()
                 .edit()
@@ -284,7 +336,23 @@ class MainActivity : AppCompatActivity() {
         }
 
         @JavascriptInterface
+        fun salvarAntecedenciaNotificacao(dias: Int) {
+            if (!origemPermitida()) return
+            val valorSeguro = dias.coerceIn(0, 7)
+            getEncryptedPrefs()
+                .edit()
+                .putInt("antecedencia_notificacao_dias", valorSeguro)
+                .apply()
+        }
+
+        @JavascriptInterface
+        fun getAntecedenciaNotificacao(): Int {
+            return getEncryptedPrefs().getInt("antecedencia_notificacao_dias", 1)
+        }
+
+        @JavascriptInterface
         fun mostrarNotificacao(titulo: String, mensagem: String) {
+            if (!origemPermitida()) return
             if (BuildConfig.DEBUG) android.util.Log.d(TAG, "Notificacao: $titulo")
             criarCanalNotificacao()
 
@@ -312,6 +380,19 @@ class MainActivity : AppCompatActivity() {
 
             val manager = getSystemService(Context.NOTIFICATION_SERVICE) as android.app.NotificationManager
             manager.notify(System.currentTimeMillis().toInt(), notification)
+        }
+
+        // Firebase ID token para o Worker do assistente; roda na thread da ponte, então pode bloquear
+        @JavascriptInterface
+        fun getIdToken(): String {
+            if (!origemPermitida()) return ""
+            val user = auth.currentUser ?: return ""
+            return try {
+                Tasks.await(user.getIdToken(false), 10, TimeUnit.SECONDS).token ?: ""
+            } catch (e: Exception) {
+                if (BuildConfig.DEBUG) android.util.Log.e(TAG, "Erro ao obter ID token", e)
+                ""
+            }
         }
 
         @JavascriptInterface
@@ -501,7 +582,7 @@ class MainActivity : AppCompatActivity() {
                 val versionNameServidor = obj.getString("versionName")
                 val apkUrl = obj.getString("apkUrl")
 
-                if (!apkUrl.startsWith("https://")) {
+                if (!apkUrl.startsWith(APK_URL_PREFIX)) {
                     if (BuildConfig.DEBUG) android.util.Log.w(TAG, "URL de APK insegura")
                     return@launch
                 }

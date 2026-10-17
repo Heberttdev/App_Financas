@@ -1,0 +1,10 @@
+name = "groq-proxy"
+main = "groq-proxy.js"
+compatibility_date = "2025-01-01"
+workers_dev = true
+# Mantém variáveis criadas pelo dashboard; o secret GROQ_API_KEY já persiste entre deploys
+keep_vars = true
+
+[[kv_namespaces]]
+binding = "CHAT_KV"
+id = "1cda15f0d3304fe2acaa283295b63f3c"

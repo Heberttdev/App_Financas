@@ -1,6 +1,6 @@
 {
-  "versionCode": 5,
-  "versionName": "1.4",
-  "apkUrl": "https://github.com/Heberttdev/App_Financas/releases/download/v1.4/app-release.apk",
-  "notas": "Correcao das notificacoes de vencimento, melhorias de UX e novos filtros de relatorio."
+  "versionCode": 6,
+  "versionName": "1.5",
+  "apkUrl": "https://github.com/Heberttdev/App_Financas/releases/download/v1.5/gerenciadordedividas.apk",
+  "notas": "Correcao das notificacoes de vencimento, melhorias de UX, novos filtros de relatorio e correcoes de seguranca."
 }

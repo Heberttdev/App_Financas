@@ -105,6 +105,122 @@
         function hideLoading() {
           document.getElementById("loadingOverlay").style.display = "none";
         }
+
+        function atualizarStatusConexao() {
+          const el = document.getElementById("conexaoStatus");
+          if (!el) return;
+          if (navigator.onLine) {
+            if (!el.hidden) {
+              el.textContent = "Conexão restaurada. Sincronizando...";
+              el.classList.add("online");
+              setTimeout(() => { el.hidden = true; }, 2200);
+            }
+          } else {
+            el.hidden = false;
+            el.classList.remove("online");
+            el.textContent = "Sem conexão. Suas alterações podem não ser salvas.";
+          }
+        }
+
+        window.addEventListener("online", atualizarStatusConexao);
+        window.addEventListener("offline", atualizarStatusConexao);
+        atualizarStatusConexao();
+
+        window.abrirConfiguracoes = () => {
+          const modal = document.getElementById("modalConfiguracoes");
+          if (!modal) return;
+          modal.style.display = "flex";
+          window.carregarPreferenciaNotificacao?.();
+          if (window.lucide) lucide.createIcons();
+        };
+
+        window.fecharConfiguracoes = () => {
+          const modal = document.getElementById("modalConfiguracoes");
+          if (modal) modal.style.display = "none";
+        };
+
+        function atualizarStatusSincronizacao(texto, tipo = "") {
+          const el = document.getElementById("syncStatus");
+          if (!el) return;
+          el.hidden = !texto;
+          el.className = `sync-status ${tipo}`;
+          el.textContent = texto;
+          if (texto && tipo === "sucesso") {
+            setTimeout(() => { el.hidden = true; }, 1800);
+          }
+        }
+
+        function chaveFilaOffline() {
+          return currentUser ? `filaSync_${currentUser.uid}` : null;
+        }
+
+        function chaveCacheDividas() {
+          return currentUser ? `cacheDividas_${currentUser.uid}` : null;
+        }
+
+        function salvarCacheDividas() {
+          const chave = chaveCacheDividas();
+          if (chave) localStorage.setItem(chave, JSON.stringify(dividas));
+        }
+
+        function carregarCacheDividas() {
+          const chave = chaveCacheDividas();
+          if (!chave) return [];
+          try {
+            return JSON.parse(localStorage.getItem(chave) || "[]");
+          } catch {
+            return [];
+          }
+        }
+
+        function lerFilaOffline() {
+          const chave = chaveFilaOffline();
+          if (!chave) return [];
+          try {
+            return JSON.parse(localStorage.getItem(chave) || "[]");
+          } catch {
+            return [];
+          }
+        }
+
+        function enfileirarOperacaoOffline(operacao) {
+          const chave = chaveFilaOffline();
+          if (!chave) return;
+          const fila = lerFilaOffline();
+          const mesmaOperacao = fila.findIndex(
+            (item) => item.id === operacao.id,
+          );
+          if (mesmaOperacao >= 0) fila[mesmaOperacao] = operacao;
+          else fila.push(operacao);
+          localStorage.setItem(chave, JSON.stringify(fila));
+          atualizarStatusSincronizacao("Aguardando conexão");
+        }
+
+        async function sincronizarFilaOffline() {
+          const ref = refDividas();
+          const chave = chaveFilaOffline();
+          if (!ref || !chave || !navigator.onLine) return;
+          const fila = lerFilaOffline();
+          if (!fila.length) return;
+          atualizarStatusSincronizacao("Sincronizando...");
+          try {
+            for (const operacao of fila) {
+              if (operacao.tipo === "remove") {
+                await ref.child(String(operacao.id)).remove();
+              } else {
+                await ref.child(String(operacao.id)).set(operacao.divida);
+              }
+            }
+            localStorage.removeItem(chave);
+            atualizarStatusSincronizacao("Sincronizado", "sucesso");
+            carregarDividasRealtime();
+          } catch (error) {
+            console.error("Erro ao sincronizar fila offline:", error);
+            atualizarStatusSincronizacao("Falha na sincronização", "erro");
+          }
+        }
+
+        window.addEventListener("online", sincronizarFilaOffline);
         function limparListeners() {
           listenersAtivos.forEach((r) => {
             try {
@@ -291,17 +407,24 @@
           mostrarApp(user);
         }
 
+        function atualizarSaudacao(user) {
+          const nome = (user && (user.displayName || user.email || "").trim()) || "você";
+          const h = new Date().getHours();
+          let periodo = "Boa noite";
+          if (h < 12) periodo = "Bom dia";
+          else if (h < 18) periodo = "Boa tarde";
+          const el = document.getElementById("saudacaoPessoa");
+          if (el) el.textContent = `${periodo}, ${nome}`;
+        }
+
         // ============================================
         // FUNÇÃO PARA MOSTRAR UI DO USUÁRIO
         // ============================================
         function mostrarUIUsuario(userData) {
           console.log("🔄 Mostrando UI para:", userData.email);
 
-          // Atualizar nome
-          const nomeEl = document.getElementById("nomeUsuario");
-          if (nomeEl) {
-            nomeEl.textContent = userData.displayName || userData.email;
-          }
+          // Atualizar saudação
+          atualizarSaudacao(userData);
 
           // Trocar telas
           const authScreen = document.getElementById("authScreen");
@@ -321,6 +444,7 @@
           if (navBottom) {
             navBottom.style.display = "flex";
           }
+          if (typeof esconderBootSkeleton === "function") esconderBootSkeleton();
         }
 
         // ============================================
@@ -369,6 +493,7 @@
           if (navBottom) navBottom.style.display = "none";
           const fab = document.getElementById("fabNovaDivida");
           if (fab) fab.classList.remove("visivel");
+          esconderBootSkeleton();
         }
         window.mostrarTelaAuth = mostrarTelaAuth;
 
@@ -381,6 +506,7 @@
           }
 
           currentUser = user;
+          sincronizarFilaOffline();
 
           // Esconder tela de login
           const authScreen = document.getElementById("authScreen");
@@ -389,8 +515,7 @@
           if (authScreen) authScreen.classList.remove("active");
           if (mainScreen) mainScreen.classList.add("active");
 
-          const nomeEl = document.getElementById("nomeUsuario");
-          if (nomeEl) nomeEl.textContent = user.displayName || user.email;
+          atualizarSaudacao(user);
 
           // Mostrar nav bottom
           const navBottom = document.querySelector(".nav-bottom");
@@ -399,6 +524,8 @@
           // Mostrar FAB
           const fab = document.getElementById("fabNovaDivida");
           if (fab) fab.classList.add("visivel");
+
+          esconderBootSkeleton();
 
           // delay para a sessão do Firebase sincronizar antes de buscar dados
           setTimeout(() => {
@@ -544,6 +671,13 @@
             return;
           }
 
+          if (!navigator.onLine) {
+            dividas = carregarCacheDividas();
+            atualizarStatusSincronizacao("Modo offline");
+            atualizarDashboard();
+            return;
+          }
+
           console.log("🔍 Carregando dados para UID:", currentUser.uid);
 
           // Verificar se já está carregando para evitar duplicação
@@ -575,6 +709,7 @@
 
               const data = snapshot.val();
               dividas = data ? Object.values(data) : [];
+              salvarCacheDividas();
               console.log("✅ Dividas carregadas:", dividas.length);
 
               isLoading = false;
@@ -609,36 +744,39 @@
           listenersAtivos.push(ref);
         }
 
+        function esconderBootSkeleton() {
+          const boot = document.getElementById("bootSkeleton");
+          if (!boot || boot.classList.contains("oculto")) return;
+          boot.classList.add("oculto");
+          setTimeout(() => boot.remove(), 400);
+        }
+        window.esconderBootSkeleton = esconderBootSkeleton;
+        // Segurança: nunca prender o usuário no skeleton
+        setTimeout(esconderBootSkeleton, 9000);
+
         function mostrarSkeletonDashboard() {
           const resumo = document.getElementById("resumoCards");
-          if (!resumo) return;
-
-          const cardSkeleton = `
+          if (resumo) {
+            const cardSkeleton = `
             <div class="skeleton-card">
               <div class="skeleton skeleton-line curta"></div>
               <div class="skeleton skeleton-line larga" style="height:22px;margin-top:6px"></div>
             </div>`;
 
-          resumo.innerHTML = `<div class="skeleton-resumo-cards">${cardSkeleton.repeat(4)}</div>`;
+            resumo.innerHTML = `<div class="skeleton-resumo-cards">${cardSkeleton.repeat(4)}</div>`;
+          }
 
           const proxima = document.getElementById("proximaContaCard");
           if (proxima) {
             proxima.innerHTML = `
-              <div class="skeleton-card">
-                <div class="skeleton skeleton-line curta"></div>
-                <div class="skeleton skeleton-line media" style="height:18px;margin-top:8px"></div>
-                <div class="skeleton skeleton-line larga" style="height:16px"></div>
-              </div>`;
+              <div class="skeleton skeleton-line larga" style="height:44px;border-radius:10px;margin:10px 0 12px"></div>`;
           }
 
-          const prog = document.getElementById("progressoGeral");
+          const prog = document.getElementById("proxProgresso");
           if (prog) {
             prog.innerHTML = `
-              <div class="skeleton-card">
-                <div class="skeleton skeleton-line curta"></div>
-                <div class="skeleton skeleton-line" style="height:10px;border-radius:10px;margin-top:10px"></div>
-                <div class="skeleton skeleton-line media" style="height:14px;margin-top:12px"></div>
-              </div>`;
+              <div class="skeleton skeleton-line larga" style="height:10px;border-radius:10px;margin:4px 0 10px"></div>
+              <div class="skeleton skeleton-line curta" style="height:12px;margin-bottom:12px"></div>`;
           }
 
           const venc = document.getElementById("listaProximosVencimentos");
@@ -648,19 +786,69 @@
               <div class="skeleton skeleton-line media" style="height:14px;margin-bottom:10px"></div>
               <div class="skeleton skeleton-line curta" style="height:14px"></div>`;
           }
+
+          const lista = document.getElementById("listaDividas");
+          if (lista) {
+            const itemSkeleton = `
+              <div class="skeleton-divida-card">
+                <div class="skeleton-divida-info">
+                  <div class="skeleton skeleton-line larga"></div>
+                  <div class="skeleton skeleton-line media"></div>
+                  <div class="skeleton skeleton-line curta" style="height:8px"></div>
+                </div>
+                <div class="skeleton-divida-valor">
+                  <div class="skeleton skeleton-line curta" style="width:70px;height:16px;margin-bottom:0"></div>
+                  <div class="skeleton skeleton-line curta" style="width:50px;margin-bottom:0"></div>
+                </div>
+              </div>`;
+            lista.innerHTML = itemSkeleton.repeat(3);
+          }
         }
-        async function salvarDividasNoBanco() {
-          if (!currentUser) return;
-          const d = {};
-          dividas.forEach((x) => {
-            d[x.id] = x;
-          });
+        function refDividas() {
+          return currentUser
+            ? db.ref("usuarios/" + currentUser.uid + "/dividas")
+            : null;
+        }
+
+        async function salvarDividaNoBanco(divida) {
+          const ref = refDividas();
+          if (!ref || !divida?.id) return false;
+          if (!navigator.onLine) {
+            enfileirarOperacaoOffline({ tipo: "set", id: divida.id, divida });
+            salvarCacheDividas();
+            return true;
+          }
           try {
-            await db.ref("usuarios/" + currentUser.uid + "/dividas").set(d);
-            console.log("Dados salvos com sucesso");
+            atualizarStatusSincronizacao("Salvando...");
+            await ref.child(String(divida.id)).set(divida);
+            atualizarStatusSincronizacao("Salvo", "sucesso");
+            return true;
           } catch (error) {
-            console.error("Erro ao salvar:", error);
-            mostrarToast("Erro ao salvar. Verifique as regras do banco de dados.", "erro");
+            console.error("Erro ao salvar dívida:", error);
+            mostrarToast("Não foi possível salvar. Tente novamente.", "erro");
+            atualizarStatusSincronizacao("Falha ao salvar", "erro");
+            return false;
+          }
+        }
+
+        async function removerDividaNoBanco(id) {
+          const ref = refDividas();
+          if (!ref || !id) return false;
+          if (!navigator.onLine) {
+            enfileirarOperacaoOffline({ tipo: "remove", id });
+            salvarCacheDividas();
+            return true;
+          }
+          try {
+            atualizarStatusSincronizacao("Excluindo...");
+            await ref.child(String(id)).remove();
+            atualizarStatusSincronizacao("Excluído", "sucesso");
+            return true;
+          } catch (error) {
+            console.error("Erro ao excluir dívida:", error);
+            mostrarToast("Não foi possível excluir. Tente novamente.", "erro");
+            atualizarStatusSincronizacao("Falha ao excluir", "erro");
+            return false;
           }
         }
 
@@ -675,9 +863,10 @@
           ].forEach((id) =>
             document.getElementById(id).classList.remove("active"),
           );
-          document
-            .querySelectorAll(".nav-item")
-            .forEach((el) => el.classList.remove("active"));
+          document.querySelectorAll(".nav-item").forEach((el) => {
+            el.classList.remove("active");
+            el.removeAttribute("aria-current");
+          });
 
           const fab = document.getElementById("fabNovaDivida");
           if (fab) {
@@ -687,6 +876,7 @@
           if (t === "dashboard") {
             document.getElementById("mainScreen").classList.add("active");
             document.querySelector('.nav-item[data-tela="dashboard"]').classList.add("active");
+            document.querySelector('.nav-item[data-tela="dashboard"]').setAttribute("aria-current", "page");
             atualizarDashboard();
           } else if (t === "adicionar") {
             document.getElementById("adicionarScreen").classList.add("active");
@@ -694,14 +884,17 @@
           } else if (t === "relatorios") {
             document.getElementById("relatoriosScreen").classList.add("active");
             document.querySelector('.nav-item[data-tela="relatorios"]').classList.add("active");
+            document.querySelector('.nav-item[data-tela="relatorios"]').setAttribute("aria-current", "page");
             aplicarFiltroPeriodo();
           } else if (t === "dividas") {
             document.getElementById("dividasScreen").classList.add("active");
             document.querySelector('.nav-item[data-tela="dividas"]')?.classList.add("active");
+            document.querySelector('.nav-item[data-tela="dividas"]')?.setAttribute("aria-current", "page");
             atualizarDashboard();
           } else if (t === "assistente") {
             document.getElementById("assistenteScreen").classList.add("active");
             document.querySelector('.nav-item[data-tela="assistente"]')?.classList.add("active");
+            document.querySelector('.nav-item[data-tela="assistente"]')?.setAttribute("aria-current", "page");
             if (typeof iniciarAssistente === "function") iniciarAssistente();
           }
         };
@@ -813,9 +1006,10 @@
             .getElementById("adicionarScreen")
             .getAttribute("data-editing-id");
 
+          let dividaAtual;
           if (eid) {
             const idx = dividas.findIndex((d) => d.id === eid);
-            if (idx !== -1)
+            if (idx !== -1) {
               dividas[idx] = {
                 ...dividas[idx],
                 nome,
@@ -826,11 +1020,13 @@
                 parcelas: ps,
                 observacao: obs,
               };
+              dividaAtual = dividas[idx];
+            }
             document
               .getElementById("adicionarScreen")
               .removeAttribute("data-editing-id");
           } else {
-            dividas.push({
+            dividaAtual = {
               id: Date.now().toString(),
               nome,
               categoria: cat,
@@ -840,12 +1036,14 @@
               parcelas: ps,
               observacao: obs,
               criadoEm: agoraISO(),
-            });
+            };
+            dividas.push(dividaAtual);
           }
 
           setBtnLoading(btn, true);
-          await salvarDividasNoBanco();
+          const salvo = await salvarDividaNoBanco(dividaAtual);
           setBtnLoading(btn, false);
+          if (!salvo) return;
           formularioModificado = false;
           window.navegar("dashboard");
         };
@@ -907,6 +1105,7 @@
             dividas.push(dividaRemovida);
             dividas.sort((a, b) => (a.nome || "").localeCompare(b.nome || ""));
             atualizarDashboard();
+            salvarDividaNoBanco(dividaRemovida);
             el.remove();
           };
 
@@ -915,7 +1114,12 @@
           timer = setTimeout(async () => {
             el.remove();
             if (!cancelado) {
-              await salvarDividasNoBanco();
+              const removida = await removerDividaNoBanco(id);
+              if (!removida) {
+                dividas.push(dividaRemovida);
+                dividas.sort((a, b) => (a.nome || "").localeCompare(b.nome || ""));
+                atualizarDashboard();
+              }
             }
           }, 5000);
         };
@@ -939,7 +1143,8 @@
               p.status = p.status === "pago" ? "pendente" : "pago";
               p.pagoEm = p.status === "pago" ? agoraISO() : null;
               const ficouPago = p.status === "pago";
-              await salvarDividasNoBanco();
+              await salvarDividaNoBanco(d);
+              atualizarDashboard();
               mostrarToast(
                 ficouPago ? "Parcela paga!" : "Parcela reaberta",
                 ficouPago ? "sucesso" : "info",
@@ -1068,22 +1273,41 @@
             else ok++;
           });
 
+          let cTodas = 0, cVencidas = 0, cProximas = 0, cQuitadas = 0;
+          const hojeContador = new Date();
+          (dividas || []).forEach((d) => {
+            const temPendente = d.parcelas?.some((p) => p.status === "pendente");
+            const todasPagas = d.parcelas?.length > 0 && d.parcelas?.every((p) => p.status === "pago");
+            if (todasPagas) cQuitadas++;
+            if (temPendente) cTodas++;
+
+            const temVencida = d.parcelas?.some(
+              (p) => p.status === "pendente" && new Date(p.vencimento) < hojeContador,
+            );
+            if (temVencida) cVencidas++;
+
+            const temProxima = d.parcelas?.some((p) => {
+              if (p.status !== "pendente") return false;
+              const dias = Math.ceil(
+                (new Date(p.vencimento) - hojeContador) / (1000 * 60 * 60 * 24),
+              );
+              return dias >= 0 && dias <= 7;
+            });
+            if (temProxima) cProximas++;
+          });
+
+          const elCTodas = document.getElementById("count-todas");
+          if (elCTodas) elCTodas.textContent = cTodas;
+          const elCVencidas = document.getElementById("count-vencidas");
+          if (elCVencidas) elCVencidas.textContent = cVencidas;
+          const elCProximas = document.getElementById("count-proximas");
+          if (elCProximas) elCProximas.textContent = cProximas;
+          const elCQuitadas = document.getElementById("count-quitadas");
+          if (elCQuitadas) elCQuitadas.textContent = cQuitadas;
+
           const resumo = document.getElementById("resumoDividas");
-
           if (resumo) {
-            resumo.innerHTML = `
-        <div class="card" style="margin-bottom:15px">
-           <h3>
-  <i data-lucide="bar-chart-2" class="icon icon-sm"></i>
-  Resumo
-</h3>
-
-            ${vencidas} vencidas<br>
-            ${alerta} próximas do vencimento<br>
-            ${ok} em dia
-        </div>
-    `;
-            if (window.lucide) lucide.createIcons();
+            resumo.innerHTML = "";
           }
 
           if (!dividas) dividas = [];
@@ -1092,7 +1316,11 @@
             qp = 0,
             tg = 0;
           dividas.forEach((d) => {
-            tg += d.valorTotal || 0;
+            const totalParcelas = (d.parcelas || []).reduce(
+              (s, p) => s + (p.valor || 0),
+              0,
+            );
+            tg += totalParcelas || d.valorTotal || 0;
             d.parcelas?.forEach((p) => {
               if (p.status === "pendente") {
                 const hoje = new Date();
@@ -1141,65 +1369,14 @@
             }
           }
 
-          const maiorDivida = [...dividas].sort(
-            (a, b) => (b.valorTotal || 0) - (a.valorTotal || 0),
-          )[0];
-
-          document.getElementById("resumoFinanceiroConteudo").innerHTML = `
-    <div style="margin-top:10px">
-
-        <div style="margin-bottom:8px">
-            Total: <strong>${formatarMoeda(tg)}</strong>
-        </div>
-
-        <div style="margin-bottom:8px">
-            Pago: <strong style="color:var(--success)">
-                ${formatarMoeda(tpg)}
-            </strong>
-        </div>
-
-        <div style="margin-bottom:12px">
-            Falta: <strong style="color:var(--danger)">
-                ${formatarMoeda(tp)}
-            </strong>
-        </div>
-
-        ${
-          maiorDivida
-            ? `
-            <div style="
-                border-top:1px solid var(--border-light);
-                padding-top:10px;
-            ">
-                <span style="display:flex;align-items:center;gap:6px;color:var(--text-secondary);font-size:13px">
-                    <i data-lucide="trophy" class="icon icon-sm"></i> Maior dívida
-                </span>
-
-                <div style="
-                    font-size:18px;
-                    font-weight:bold;
-                    margin-top:4px;
-                ">
-                    ${escapeHtml(maiorDivida.nome)}
-                </div>
-
-                <div style="color:var(--warning)">
-                    ${formatarMoeda(maiorDivida.valorTotal || 0)}
-                </div>
-            </div>
-            `
-            : ""
-        }
-
-    </div>
-`;
-          if (window.lucide) lucide.createIcons();
           const proximas = [];
 
           dividas.forEach((d) => {
             d.parcelas?.forEach((p) => {
               if (p.status === "pendente") {
                 proximas.push({
+                  dividaId: d.id,
+                  parcelaId: p.id,
                   nome: d.nome,
                   valor: p.valor,
                   vencimento: p.vencimento,
@@ -1213,59 +1390,53 @@
           );
 
           const proxima = proximas[0];
-          if (proxima) {
-            document.getElementById("proximaContaCard").innerHTML = `
-        <div class="card-proxima">
-            <div class="titulo">
-                <i data-lucide="flame" class="icon icon-sm"></i> Proximo Vencimento
+          const proxDest = document.getElementById("proximaContaCard");
+          if (proxDest) {
+            proxDest.innerHTML = proxima
+              ? `
+        <div class="prox-destaque">
+            <div class="prox-destaque-titulo">
+                <i data-lucide="flame" class="icon icon-sm"></i> Próxima conta
             </div>
 
-            <h2>${escapeHtml(proxima.nome)}</h2>
+            <div class="prox-destaque-linha">
+                <div class="prox-destaque-nome">
+                    <strong>${escapeHtml(proxima.nome)}</strong>
 
-            <div class="valor">
-                ${formatarMoeda(proxima.valor)}
+                    <small>
+                        <i data-lucide="calendar" class="icon icon-sm"></i> ${formatarData(proxima.vencimento)}
+                    </small>
+                </div>
+
+                <strong class="prox-destaque-valor">
+                    ${formatarMoeda(proxima.valor)}
+                </strong>
             </div>
-
-            <small style="display:flex;align-items:center;gap:4px">
-                <i data-lucide="calendar" class="icon icon-sm"></i> ${formatarData(proxima.vencimento)}
-            </small>
-        </div>
-    `;
+            <button class="btn-proxima-acao" type="button" onclick="event.stopPropagation();window.pagarParcela('${escapeHtml(proxima.dividaId)}','${escapeHtml(proxima.parcelaId)}')">
+                <i data-lucide="check-circle" class="icon icon-sm"></i> Marcar como paga
+            </button>
+        </div>`
+              : "";
             if (window.lucide) lucide.createIcons();
           }
 
           const percentual = tg > 0 ? ((tpg / tg) * 100).toFixed(0) : 0;
 
-          document.getElementById("progressoGeral").innerHTML = `
-<div class="card">
-
-   <h3>
-    <i data-lucide="target" class="icon icon-sm"></i>
-    Progresso Geral
-</h3>
-
-    <div class="progresso-barra">
-        <div
-            class="progresso-preenchimento"
-            style="width:${percentual}%">
+          const progBox = document.getElementById("proxProgresso");
+          if (progBox) {
+            progBox.innerHTML = (dividas || []).length
+              ? `
+        <div class="progresso-barra">
+            <div class="progresso-preenchimento" style="width:${percentual}%"></div>
         </div>
-    </div>
 
-    <div style="margin-top:10px">
-        ${formatarMoeda(tpg)}
-    </div>
-
-    <small>
-        de ${formatarMoeda(tg)}
-    </small>
-
-    <div style="margin-top:8px;font-weight:bold">
-        ${percentual}% quitado
-    </div>
-
-</div>
-`;
-          if (window.lucide) lucide.createIcons();
+        <div class="prox-progresso-texto">
+            <span>${percentual}% quitado</span>
+            <span>falta ${formatarMoeda(tp)}</span>
+        </div>`
+              : "";
+            if (window.lucide) lucide.createIcons();
+          }
 
           const pendentes = [];
 
@@ -1286,7 +1457,7 @@
           );
 
           document.getElementById("resumoCards").innerHTML = `
-    <div class="card">
+    <div class="card dashboard-kpi dashboard-kpi-total">
         <h3>
             <i data-lucide="wallet" class="icon icon-sm"></i>
             Total
@@ -1294,7 +1465,7 @@
         <div class="valor">${formatarMoeda(tg)}</div>
     </div>
 
-    <div class="card">
+    <div class="card dashboard-kpi dashboard-kpi-pendente">
         <h3>
             <i data-lucide="clock" class="icon icon-sm"></i>
             Pendente
@@ -1304,7 +1475,7 @@
         </div>
     </div>
 
-    <div class="card">
+    <div class="card dashboard-kpi dashboard-kpi-pago">
         <h3>
             <i data-lucide="badge-check" class="icon icon-sm"></i>
             Pago
@@ -1314,7 +1485,7 @@
         </div>
     </div>
 
-    <div class="card">
+    <div class="card dashboard-kpi dashboard-kpi-parcelas">
         <h3>
             <i data-lucide="layers" class="icon icon-sm"></i>
             Parcelas
@@ -1419,82 +1590,54 @@
               const safeNome = escapeHtml(d.nome);
               const safeObs = d.observacao ? escapeHtml(d.observacao.substring(0, 60)) : "";
               const obsSuffix = d.observacao && d.observacao.length > 60 ? "..." : "";
+              const textoVenc = proximaParcela ? getTextoVencimento(proximaParcela.vencimento) : "";
+
               return `<div class="divida-card ${getClasseVencimento(d)}" id="card-${escapeHtml(d.id)}">
 
-                        <div class="divida-cabecalho" onclick="window.toggleExpansao('${escapeHtml(d.id)}')">
-                            <div class="info">
-                                <span class="nome">${safeNome}</span>
-                               <span class="progresso">
-    ${formatarMoeda(d.valorTotal || 0)}
-    •
-    ${pg}/${tot} pagas
-</span>
-${
-  d.parcelas?.find((p) => p.status === "pendente")
-    ? `<span class="progresso">
-      ${getTextoVencimento(
-        d.parcelas.find((p) => p.status === "pendente").vencimento,
-      )}
-   </span>`
-    : ""
-}
-                               ${getCatBadge(d.categoria)}
-${statusVencimento}
+                        <div class="divida-cabecalho" role="button" tabindex="0" aria-expanded="false" aria-controls="parcelas-${escapeHtml(d.id)}" onclick="window.toggleExpansao('${escapeHtml(d.id)}')" onkeydown="if(event.key === 'Enter' || event.key === ' '){event.preventDefault();window.toggleExpansao('${escapeHtml(d.id)}')}">
+                            <div class="divida-info-col">
+                                <div class="divida-nome-linha">
+                                  <span class="nome">${safeNome}</span>
+                                  ${getCatBadge(d.categoria)}
+                                </div>
+                                <div class="divida-meta-linha">
+                                  <span class="divida-meta-texto">${pg}/${tot} pagas</span>
+                                  ${textoVenc ? `<span class="divida-meta-sep">•</span><span class="divida-meta-texto">${textoVenc}</span>` : ""}
+                                </div>
                                 ${safeObs ? `<span class="observacao-texto">${safeObs}${obsSuffix}</span>` : ""}
                                 <div class="progresso-barra"><div class="progresso-preenchimento" style="width:${pr}%"></div></div>
                             </div>
-                            <div style="display:flex;align-items:center;gap:8px;">
 
-    ${
-      d.parcelas?.find((p) => p.status === "pendente")
-        ? `
-      <button
-    class="btn-sm btn-success"
-    onclick="
-        event.stopPropagation();
-        window.pagarParcela(
-            '${escapeHtml(d.id)}',
-            '${escapeHtml(d.parcelas.find((p) => p.status === "pendente").id)}'
-        )
-    ">
-    <i data-lucide="check" class="icon icon-sm"></i>
-</button>
-      `
-        : ""
-    }
-
-    <div class="acoes-cabecalho" onclick="event.stopPropagation()">
-
-       <button class="btn-sm btn-outline"
-    onclick="window.editarDivida('${escapeHtml(d.id)}')">
-    <i data-lucide="pencil" class="icon icon-sm"></i>
-</button>
-
-        <button class="btn-sm btn-danger"
-    onclick="window.excluirDivida('${escapeHtml(d.id)}')">
-    <i data-lucide="trash-2" class="icon icon-sm"></i>
-</button>
-
-    </div>
-
-    <span class="seta-expandir"><i data-lucide="chevron-down" class="icon icon-sm"></i></span>
-
-</div>
+                            <div class="divida-valor-col">
+                                <span class="valor-destaque">${formatarMoeda(d.valorTotal || 0)}</span>
+                                <div class="divida-status-linha">
+                                  ${statusVencimento}
+                                  <span class="seta-expandir"><i data-lucide="chevron-down" class="icon icon-sm"></i></span>
+                                </div>
+                            </div>
                         </div>
-                        <div class="parcelas-container">
+
+                        <div class="parcelas-container" id="parcelas-${escapeHtml(d.id)}">
+                                <div class="parcelas-titulo">
+                                    <span>Parcelas</span>
+                                    <span>${pg}/${tot} pagas (${pr.toFixed(0)}%)</span>
+                                </div>
                                 ${(d.parcelas || [])
                                   .map(
                                     (p) => `<div class="parcela-linha">
                                 <div class="parcela-descricao">
                                     <span class="parcela-status"><i data-lucide="${p.status === "pago" ? "check-circle" : "circle-dashed"}" class="icon icon-sm"></i></span>
-                                    <span>${escapeHtml(String(p.numero))}ª <span class="parcela-vencimento">${formatarData(p.vencimento)}</span></span>
+                                    <span class="parcela-identificacao">
+                                      <strong>${escapeHtml(String(p.numero))}ª parcela</strong>
+                                      <span class="parcela-vencimento">Vence em ${formatarData(p.vencimento)}</span>
                                     ${p.pagoEm ? `<span class="parcela-historico">Pago: ${formatarDataHora(p.pagoEm)}</span>` : ""}
-                                    <strong>${formatarMoeda(p.valor || 0)}</strong>
+                                    </span>
+                                    <strong class="parcela-valor">${formatarMoeda(p.valor || 0)}</strong>
                                 </div>
-                                <button class="btn-sm ${p.status === "pendente" ? "btn-success" : "btn-warning"}"
+                                <button class="parcela-acao btn-sm ${p.status === "pendente" ? "btn-success" : "btn-warning"}"
+    aria-label="${p.status === "pendente" ? "Pagar" : "Reabrir"} parcela ${p.numero}"
     onclick="event.stopPropagation();window.pagarParcela('${d.id}','${p.id}')"
-    style="width:auto;padding:0 12px;gap:6px">
-
+    >
     ${
       p.status === "pendente"
         ? '<i data-lucide="check-circle" class="icon icon-sm"></i> Pagar'
@@ -1503,6 +1646,19 @@ ${statusVencimento}
                             </div>`,
                               )
                               .join("")}
+
+                                <div class="divida-rodape-acoes">
+                                    <button class="btn-sm btn-outline"
+                                        aria-label="Editar ${safeNome}"
+                                        onclick="event.stopPropagation();window.editarDivida('${escapeHtml(d.id)}')">
+                                        <i data-lucide="pencil" class="icon icon-sm"></i> Editar
+                                    </button>
+                                    <button class="btn-sm btn-outline btn-perigo"
+                                        aria-label="Excluir ${safeNome}"
+                                        onclick="event.stopPropagation();window.excluirDivida('${escapeHtml(d.id)}')">
+                                        <i data-lucide="trash-2" class="icon icon-sm"></i> Excluir
+                                    </button>
+                                </div>
                         </div>
                     </div>`;
             })
@@ -1538,14 +1694,14 @@ ${statusVencimento}
     `;
           } else {
             lista.innerHTML = proximas
-              .slice(0, 5)
+              .slice(1, 6)
               .map(
                 (v) => `
             <div class="vencimento-item">
 
                 <div class="vencimento-info">
                     <span class="vencimento-nome">
-                        ${v.nome}
+                        ${escapeHtml(v.nome)}
                     </span>
 
                     <span class="vencimento-data">
@@ -1591,10 +1747,15 @@ ${statusVencimento}
         );
 
         window.toggleExpansao = (id) => {
-          const card = document.getElementById(`card-${id}`);
+            const card =
+              document.getElementById(`card-${id}`) ||
+              document.getElementById(`card-relatorio-${id}`);
 
           if (card) {
-            card.classList.toggle("expandido");
+            const expandido = card.classList.toggle("expandido");
+            card
+              .querySelector(".divida-cabecalho")
+              ?.setAttribute("aria-expanded", String(expandido));
           }
         };
         // Relatórios
@@ -1636,31 +1797,59 @@ ${statusVencimento}
             .filter((d) => d.parcelas.length > 0);
 
           const c = document.getElementById("listaRelatorio");
+          const resultado = document.getElementById("relatorioResultado");
+          if (resultado) {
+            resultado.textContent = `${l.length} ${l.length === 1 ? "dívida" : "dívidas"}`;
+          }
           if (!l.length) {
             c.innerHTML =
               '<div class="mensagem-vazia"><i data-lucide="search-x" class="icon icon-lg"></i>Nenhuma dívida encontrada para os filtros selecionados.</div>';
           } else {
             c.innerHTML = l
-              .map(
-                (d) => `<div class="divida-card" id="card-${d.id}">
-                        <div class="divida-cabecalho" onclick="window.toggleExpansao('${d.id}')">
-                            <div class="info"><span class="nome">${d.nome}</span>${getCatBadge(d.categoria)}</div>
-                            <span class="seta-expandir"><i data-lucide="chevron-down" class="icon icon-sm"></i></span>
+              .map((d) => {
+                const totalVal = d.parcelas.reduce((s, p) => s + (p.valor || 0), 0);
+                const pagasCount = d.parcelas.filter((p) => p.status === "pago").length;
+                return `<div class="divida-card" id="card-relatorio-${escapeHtml(d.id)}">
+                        <div class="divida-cabecalho" role="button" tabindex="0" aria-expanded="false" aria-controls="parcelas-relatorio-${escapeHtml(d.id)}" onclick="window.toggleExpansao('${escapeHtml(d.id)}')" onkeydown="if(event.key === 'Enter' || event.key === ' '){event.preventDefault();window.toggleExpansao('${escapeHtml(d.id)}')}">
+                            <div class="divida-info-col">
+                              <div class="divida-nome-linha">
+                                <span class="nome">${escapeHtml(d.nome)}</span>
+                                ${getCatBadge(d.categoria)}
+                              </div>
+                              <div class="divida-meta-linha">
+                                <span class="divida-meta-texto">${pagasCount}/${d.parcelas.length} pagas no filtro</span>
+                              </div>
+                            </div>
+                            <div class="divida-valor-col">
+                              <span class="valor-destaque">${formatarMoeda(totalVal)}</span>
+                              <div class="divida-status-linha">
+                                <span class="seta-expandir"><i data-lucide="chevron-down" class="icon icon-sm"></i></span>
+                              </div>
+                            </div>
                         </div>
-                        <div class="parcelas-container">
+                        <div class="parcelas-container" id="parcelas-relatorio-${escapeHtml(d.id)}">
+                            <div class="parcelas-titulo">
+                                <span>Parcelas do filtro</span>
+                                <span>${pagasCount}/${d.parcelas.length} pagas</span>
+                            </div>
                             ${d.parcelas
                               .map(
                                 (p) => `<div class="parcela-linha">
-                                <span>${p.numero}ª ${formatarData(p.vencimento)}</span>
-                                ${p.pagoEm ? `<span class="parcela-historico">Pago: ${formatarDataHora(p.pagoEm)}</span>` : ""}
-                                <strong>${formatarMoeda(p.valor || 0)}</strong>
-                                <span><i data-lucide="${p.status === "pago" ? "check-circle" : "circle-dashed"}" class="icon icon-sm"></i></span>
+                                <div class="parcela-descricao">
+                                  <span class="parcela-status"><i data-lucide="${p.status === "pago" ? "check-circle" : "circle-dashed"}" class="icon icon-sm"></i></span>
+                                  <span class="parcela-identificacao">
+                                    <strong>${p.numero}ª parcela</strong>
+                                    <span class="parcela-vencimento">Vence em ${formatarData(p.vencimento)}</span>
+                                    ${p.pagoEm ? `<span class="parcela-historico">Pago: ${formatarDataHora(p.pagoEm)}</span>` : ""}
+                                  </span>
+                                  <strong class="parcela-valor">${formatarMoeda(p.valor || 0)}</strong>
+                                </div>
                             </div>`,
                               )
                               .join("")}
                         </div>
-                    </div>`,
-              )
+                    </div>`;
+              })
               .join("");
           }
           if (window.lucide) lucide.createIcons();
@@ -1697,32 +1886,61 @@ ${statusVencimento}
           document.getElementById("relPercentual").textContent =
             percentual + "%";
 
-          const ranking = [...d]
-            .sort((a, b) => (b.valorTotal || 0) - (a.valorTotal || 0))
-            .slice(0, 5);
+          const proximoFoco = d
+            .flatMap((x) => x.parcelas)
+            .filter((p) => p.status === "pendente")
+            .sort((a, b) => new Date(a.vencimento) - new Date(b.vencimento))[0];
+          const foco = document.getElementById("relatorioFoco");
+          if (foco) {
+            foco.innerHTML = proximoFoco
+              ? `<div class="relatorio-foco-icone"><i data-lucide="target" class="icon"></i></div>
+                 <div class="relatorio-foco-conteudo"><span class="eyebrow">PRÓXIMO FOCO</span><strong>Priorize ${formatarMoeda(proximoFoco.valor || 0)}</strong><span>Vencimento em ${formatarData(proximoFoco.vencimento)}</span></div>`
+              : `<div class="relatorio-foco-icone"><i data-lucide="circle-check" class="icon"></i></div><div class="relatorio-foco-conteudo"><span class="eyebrow">TUDO EM DIA</span><strong>Nenhuma parcela pendente neste filtro</strong><span>Continue acompanhando seu progresso.</span></div>`;
+            if (window.lucide) lucide.createIcons();
+          }
 
-          document.getElementById("rankingDividas").innerHTML = `
+          const rankingTotal = [...d]
+            .map((x) => ({
+              ...x,
+              valorFiltrado: x.parcelas.reduce((s, p) => s + (p.valor || 0), 0),
+            }))
+            .sort((a, b) => b.valorFiltrado - a.valorFiltrado);
+          const rankingTop = rankingTotal.slice(0, 3);
+          const rankingResto = rankingTotal.slice(3);
+
+          const rankLinha = (x, i) => `
+        <div class="rank-linha">
+            <span class="rank-pos">${i + 1}</span>
+            <span class="rank-nome">${escapeHtml(x.nome)}</span>
+            <strong>${formatarMoeda(x.valorFiltrado || 0)}</strong>
+        </div>`;
+
+          const rankingEl = document.getElementById("rankingDividas");
+          if (!d.length) {
+            rankingEl.innerHTML = "";
+          } else {
+          rankingEl.innerHTML = `
 <div class="card" style="margin-bottom:15px">
 
-    <h2> Maiores Dívidas</h2>
+    <h2>Maiores valores no filtro</h2>
 
-    ${ranking
-      .map(
-        (x, i) => `
-        <div style="
-            display:flex;
-            justify-content:space-between;
-            margin-top:10px;
-        ">
-            <span>${i + 1}º ${x.nome}</span>
-            <strong>${formatarMoeda(x.valorTotal || 0)}</strong>
-        </div>
-      `,
-      )
-      .join("")}
+    ${rankingTop.map(rankLinha).join("")}
+
+    ${
+      rankingResto.length
+        ? `<div id="rankingExtra" style="display:none">${rankingResto
+            .map(rankLinha)
+            .join("")}</div>
+        <button class="btn-ranking-todas" type="button" id="btnRankingExtra" onclick="window.toggleRankingExtra()">
+            Ver todas as dívidas (${rankingResto.length})
+        </button>`
+        : ""
+    }
 
 </div>
 `;
+          }
+          if (window.lucide) lucide.createIcons();
 
           const ctx = document
             .getElementById("graficoDividas")
@@ -1762,6 +1980,16 @@ ${statusVencimento}
 
           atualizarGraficoCategorias(d);
         }
+
+        window.toggleRankingExtra = () => {
+          const box = document.getElementById("rankingExtra");
+          const btn = document.getElementById("btnRankingExtra");
+          if (!box) return;
+          const aberto = box.style.display !== "none";
+          box.style.display = aberto ? "none" : "";
+          const total = box.children.length;
+          if (btn) btn.textContent = aberto ? `Ver todas as dívidas (${total})` : "Mostrar menos";
+        };
 
         function atualizarGraficoCategorias(d) {
           const ctx = document

@@ -1,3 +1,29 @@
-npx cap sync android
+GERAR NOVA VERSAO DO APP
 
-npx cap open android
+O app e Android nativo com WebView que carrega https://financas-f371a.web.app.
+O site NAO vai dentro do APK. Nao usa Capacitor (npx cap nao funciona aqui).
+
+1. Subir a versao em app/build.gradle.kts
+   versionCode = <anterior + 1>
+   versionName = "<nova versao>"
+
+2. Gerar APK assinado no Android Studio
+   Build > Generate Signed App Bundle / APK > APK
+   Usar SEMPRE a mesma keystore (senao o Android nao instala por cima)
+   Variante: release
+   Saida: app/release/app-release.apk
+
+3. Publicar no GitHub
+   Criar release vX.Y em github.com/Heberttdev/App_Financas
+   Anexar app-release.apk
+
+4. Avisar os apps instalados (so depois da release existir)
+   Atualizar web/version.json: versionCode, versionName, apkUrl
+   apkUrl precisa comecar com:
+   https://github.com/Heberttdev/App_Financas/releases/download/
+
+5. Publicar o site
+   npx firebase-tools deploy --only hosting --project financas-f371a --config web/firebase.json
+
+WORKER DO CHAT (so quando mudar worker/groq-proxy.js)
+   npx wrangler deploy --config worker/wrangler.toml

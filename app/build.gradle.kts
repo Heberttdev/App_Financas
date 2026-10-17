@@ -11,8 +11,8 @@ android {
         applicationId = "com.financas.dividas"
         minSdk = 28
         targetSdk = 35  // ✅ Usar 34
-        versionCode = 5
-        versionName = "1.4"
+        versionCode = 6
+        versionName = "1.5"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

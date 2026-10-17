@@ -45,6 +45,9 @@ class NotificacaoWorker(
         )
 
         val uid = encryptedPrefs.getString("uid", null)
+        val antecedencia = encryptedPrefs
+            .getInt("antecedencia_notificacao_dias", 1)
+            .coerceIn(0, 7)
 
         if (uid == null) {
             return Result.success()
@@ -89,13 +92,17 @@ class NotificacaoWorker(
                         val valorFormatado = NumberFormat.getCurrencyInstance(Locale("pt", "BR"))
                             .format(valor)
 
-                        when {
-                            dias == 1L -> Pair("Vence amanhã", "$nome\n$valorFormatado")
-                            dias == 0L -> Pair("Vence hoje", "$nome\n$valorFormatado")
+                        val aviso = when {
                             dias < 0L -> Pair("Atrasada", "$nome está atrasada há ${Math.abs(dias)} dia(s)\n$valorFormatado")
+                            dias == 0L -> Pair("Vence hoje", "$nome\n$valorFormatado")
+                            dias <= antecedencia -> Pair("Vence em $dias dia(s)", "$nome\n$valorFormatado")
                             else -> null
-                        }?.let { (titulo, mensagem) ->
-                            mostrarNotificacao(titulo, mensagem)
+                        }
+
+                        val chaveNotificacao = "notificacao_${divida.key}_${parcela.key}_$hoje"
+                        if (aviso != null && !encryptedPrefs.getBoolean(chaveNotificacao, false)) {
+                            mostrarNotificacao(aviso.first, aviso.second)
+                            encryptedPrefs.edit().putBoolean(chaveNotificacao, true).apply()
                             notificacoesEnviadas++
                         }
 

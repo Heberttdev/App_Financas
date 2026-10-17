@@ -14,7 +14,8 @@
       href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
       rel="stylesheet"
     />
-    <link rel="icon" type="image/png" sizes="512x512" href="/icon.png" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="icon" type="image/png" sizes="512x512" href="/icon-512.png" />
     <link rel="stylesheet" href="css/style.css" />
 
     <meta name="theme-color" content="#5b6cff" />
@@ -29,28 +30,81 @@
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
   </head>
   <body>
+    <!-- Boot skeleton: exibido imediatamente ao abrir o app, antes do Firebase/auth -->
+    <div id="bootSkeleton" class="boot-skeleton" aria-hidden="true">
+      <div class="boot-inner">
+        <div class="boot-header">
+          <div class="skeleton boot-title"></div>
+          <div class="skeleton boot-avatar"></div>
+        </div>
+        <div class="skeleton-resumo-cards">
+          <div class="skeleton-card"><div class="skeleton skeleton-line curta"></div><div class="skeleton skeleton-line larga" style="height:22px;margin-top:6px"></div></div>
+          <div class="skeleton-card"><div class="skeleton skeleton-line curta"></div><div class="skeleton skeleton-line larga" style="height:22px;margin-top:6px"></div></div>
+          <div class="skeleton-card"><div class="skeleton skeleton-line curta"></div><div class="skeleton skeleton-line larga" style="height:22px;margin-top:6px"></div></div>
+          <div class="skeleton-card"><div class="skeleton skeleton-line curta"></div><div class="skeleton skeleton-line larga" style="height:22px;margin-top:6px"></div></div>
+        </div>
+        <div class="skeleton-card"><div class="skeleton skeleton-line larga" style="height:44px;border-radius:10px"></div></div>
+        <div class="skeleton-divida-card"><div class="skeleton-divida-info"><div class="skeleton skeleton-line larga"></div><div class="skeleton skeleton-line media"></div></div><div class="skeleton-divida-valor"><div class="skeleton skeleton-line curta" style="width:70px;height:16px"></div><div class="skeleton skeleton-line curta" style="width:50px"></div></div></div>
+        <div class="skeleton-divida-card"><div class="skeleton-divida-info"><div class="skeleton skeleton-line larga"></div><div class="skeleton skeleton-line media"></div></div><div class="skeleton-divida-valor"><div class="skeleton skeleton-line curta" style="width:70px;height:16px"></div><div class="skeleton skeleton-line curta" style="width:50px"></div></div></div>
+        <div class="skeleton-divida-card"><div class="skeleton-divida-info"><div class="skeleton skeleton-line larga"></div><div class="skeleton skeleton-line media"></div></div><div class="skeleton-divida-valor"><div class="skeleton skeleton-line curta" style="width:70px;height:16px"></div><div class="skeleton skeleton-line curta" style="width:50px"></div></div></div>
+      </div>
+    </div>
     <div class="app-container" id="appContainer">
       <div class="loading-overlay" id="loadingOverlay">
         <div class="spinner"></div>
         <p id="loadingText">Conectando...</p>
       </div>
 
+      <div id="conexaoStatus" class="conexao-status" role="status" aria-live="polite" hidden></div>
+
+      <div class="modal-overlay" id="modalConfiguracoes" style="display:none">
+        <div class="modal configuracoes-modal">
+          <div class="modal-cabecalho">
+            <h2><i data-lucide="settings" class="icon"></i> Configurações</h2>
+            <button class="btn-icon" type="button" aria-label="Fechar configurações" onclick="fecharConfiguracoes()">&times;</button>
+          </div>
+          <div class="configuracao-item">
+            <div>
+              <strong>Aparência</strong>
+              <span>Alterne entre tema claro e escuro.</span>
+            </div>
+            <button class="btn-outline btn-sm" type="button" onclick="alternarTema()" aria-label="Alternar tema">
+              <i data-lucide="sun-moon" class="icon icon-sm"></i>
+            </button>
+          </div>
+          <div class="configuracao-item configuracao-coluna">
+            <div>
+              <strong>Lembretes de vencimento</strong>
+              <span>Escolha quando deseja ser avisado.</span>
+            </div>
+            <label class="sr-only" for="configAntecedenciaNotificacao">Antecedência dos lembretes</label>
+            <select id="configAntecedenciaNotificacao" onchange="salvarPreferenciaNotificacao(this.value)">
+              <option value="0">No dia do vencimento</option>
+              <option value="1">1 dia antes</option>
+              <option value="3">3 dias antes</option>
+              <option value="7">7 dias antes</option>
+            </select>
+          </div>
+          <button class="btn-outline configuracao-fechar" type="button" onclick="fecharConfiguracoes()">Fechar</button>
+        </div>
+      </div>
+
       <div class="modal-overlay" id="modalRecuperacao" style="display: none">
         <div class="modal">
           <h2><i data-lucide="key-round" class="icon"></i> Recuperar Senha</h2>
           <div class="form-group">
-            <label>Email cadastrado</label><input type="email" id="recEmail" />
+            <label for="recEmail">Email cadastrado</label><input type="email" id="recEmail" autocomplete="email" />
           </div>
           <div id="recErro" class="erro-msg"></div>
           <div id="recSucesso" class="sucesso-msg"></div>
           <div style="display: flex; gap: 10px; margin-top: 15px">
-            <button class="btn" id="btnRecuperar" onclick="recuperarSenha()">
+            <button class="btn" id="btnRecuperar" style="flex: 1" onclick="recuperarSenha()">
               <span class="btn-spinner"></span> Enviar
             </button>
             <button
-              class="btn-outline btn-sm"
+              class="btn-outline"
               onclick="fecharModalRecuperacao()"
-              style="width: auto; padding: 0 16px"
+              style="flex: 1"
             >
               Cancelar
             </button>
@@ -64,35 +118,36 @@
         <div class="modal">
           <h2><i data-lucide="receipt" class="icon"></i> Nova Despesa</h2>
           <div class="form-group">
-            <label>Nome</label>
+            <label for="despesaNome">Nome</label>
             <input type="text" id="despesaNome" placeholder="Ex: Aluguel" />
           </div>
           <div class="form-group">
-            <label>Valor (R$)</label>
+            <label for="despesaValor">Valor (R$)</label>
             <input type="number" id="despesaValor" placeholder="0,00" step="0.01" />
           </div>
           <div class="form-group">
-            <label>Categoria</label>
+            <label for="despesaCategoria">Categoria</label>
             <select id="despesaCategoria">
               <option value="">Selecione</option>
               <option value="moradia">Moradia</option>
-              <option value="alimentacao">Alimentacao</option>
+              <option value="alimentacao">Alimentação</option>
               <option value="transporte">Transporte</option>
-              <option value="saude">Saude</option>
-              <option value="educacao">Educacao</option>
+              <option value="saude">Saúde</option>
+              <option value="educacao">Educação</option>
               <option value="lazer">Lazer</option>
               <option value="assinatura">Assinatura</option>
               <option value="outros">Outros</option>
             </select>
           </div>
-          <div style="display:flex;gap:10px;margin-top:8px">
-            <button class="btn" onclick="confirmarDespesa()">Salvar</button>
-            <button class="btn-outline" style="flex:1;padding:14px;border-radius:12px;border:1px solid var(--primary);color:var(--primary);background:transparent;font-weight:600;cursor:pointer" onclick="document.getElementById('modalDespesa').style.display='none'">Cancelar</button>
+          <div style="display:flex;gap:10px;margin-top:12px">
+            <button class="btn" style="flex:1" type="button" onclick="confirmarDespesa()">Salvar</button>
+            <button class="btn-outline" style="flex:1" type="button" onclick="document.getElementById('modalDespesa').style.display='none'">Cancelar</button>
           </div>
         </div>
       </div>
 
-      <div class="toast-container"></div>
+      <div class="toast-container" aria-live="polite" aria-atomic="true"></div>
+      <div id="syncStatus" class="sync-status" role="status" aria-live="polite" hidden></div>
 
       <div id="authScreen" class="screen active">
         <div style="text-align: center; margin-top: 30px">
@@ -173,80 +228,114 @@
 
           <div class="divider-text">ou com email</div>
 
+          <label class="sr-only" for="loginEmail">Email</label>
           <input
             type="email"
             id="loginEmail"
             placeholder="Email"
             autocomplete="email"
           />
-          <input type="password" id="loginSenha" placeholder="Senha" />
+          <label class="sr-only" for="loginSenha">Senha</label>
+          <input type="password" id="loginSenha" placeholder="Senha" autocomplete="current-password" />
           <div id="loginErro" class="erro-msg"></div>
           <button class="btn" id="btnLogin" onclick="login()">
             <span class="btn-spinner"></span> Entrar
           </button>
-          <span class="link" onclick="toggleAuthForm('cadastro')"
-            >Criar conta</span
-          >
-          <span
+          <button class="link" type="button" onclick="toggleAuthForm('cadastro')">Criar conta</button>
+          <button
             class="link"
+            type="button"
             onclick="abrirModalRecuperacao()"
             style="font-size: 13px"
-            >Esqueci minha senha</span
-          >
+            >Esqueci minha senha</button>
         </div>
         <div id="cadastroForm" class="auth-form" style="display: none">
-          <input type="text" id="cadNome" placeholder="Nome" />
+          <label class="sr-only" for="cadNome">Nome</label>
+          <input type="text" id="cadNome" placeholder="Nome" autocomplete="name" />
+          <label class="sr-only" for="cadEmail">Email</label>
           <input
             type="email"
             id="cadEmail"
             placeholder="Email"
             autocomplete="email"
           />
+          <label class="sr-only" for="cadSenha">Senha</label>
           <input
             type="password"
             id="cadSenha"
-            placeholder="Senha (mínimo 6 caracteres)"
+            placeholder="Senha (mínimo 6 caracteres)" autocomplete="new-password"
           />
           <div id="cadErro" class="erro-msg"></div>
           <button class="btn" id="btnCadastrar" onclick="cadastrar()">
             <span class="btn-spinner"></span> Cadastrar
           </button>
-          <span class="link" onclick="toggleAuthForm('login')"
-            >Já tenho conta</span
-          >
+          <button class="link" type="button" onclick="toggleAuthForm('login')">Já tenho conta</button>
         </div>
       </div>
 
       <div id="mainScreen" class="screen">
         <div class="header">
-          <h1>Dashboard</h1>
+          <div class="header-title">
+            <h1>Dashboard</h1>
+            <p class="header-sub"><span id="saudacaoPessoa"></span></p>
+          </div>
           <div class="header-actions">
-            <button class="tema-toggle" onclick="alternarTema()">
+            <button class="tema-toggle" type="button" aria-label="Alternar tema" onclick="alternarTema()">
               <i data-lucide="sun" class="icon icon-sm icon-sun"></i>
               <i data-lucide="moon" class="icon icon-sm icon-moon"></i>
             </button>
-            <button class="logout-btn" onclick="if(confirm('Tem certeza que deseja sair?'))logout()">
+            <button class="tema-toggle" type="button" aria-label="Abrir configurações" onclick="abrirConfiguracoes()">
+              <i data-lucide="settings" class="icon icon-sm"></i>
+            </button>
+            <button class="logout-btn" type="button" onclick="if(confirm('Tem certeza que deseja sair?'))logout()">
               <i data-lucide="log-out" class="icon icon-sm"></i> Sair
             </button>
           </div>
         </div>
-        <div class="user-info" style="margin-bottom: 15px">
-          <h3>Olá, <span id="nomeUsuario" style="color: var(--text-secondary)"></span></h3>
-          
+
+        <div class="resumo-cards" id="resumoCards">
+          <div class="skeleton-resumo-cards">
+            <div class="skeleton-card">
+              <div class="skeleton skeleton-line curta"></div>
+              <div class="skeleton skeleton-line larga" style="height:22px;margin-top:6px"></div>
+            </div>
+            <div class="skeleton-card">
+              <div class="skeleton skeleton-line curta"></div>
+              <div class="skeleton skeleton-line larga" style="height:22px;margin-top:6px"></div>
+            </div>
+            <div class="skeleton-card">
+              <div class="skeleton skeleton-line curta"></div>
+              <div class="skeleton skeleton-line larga" style="height:22px;margin-top:6px"></div>
+            </div>
+            <div class="skeleton-card">
+              <div class="skeleton skeleton-line curta"></div>
+              <div class="skeleton skeleton-line larga" style="height:22px;margin-top:6px"></div>
+            </div>
+          </div>
         </div>
 
-        <div class="resumo-cards" id="resumoCards"></div>
+        <div class="card-proxima" id="proximosVencimentosCard">
+          <div class="dashboard-secao-cabecalho">
+            <h2>
+              <i data-lucide="calendar-clock" class="icon icon-sm"></i>
+              Próximos vencimentos
+            </h2>
+            <button class="btn-text" type="button" onclick="navegar('dividas')">Ver todas</button>
+          </div>
 
-        <div id="proximaContaCard"></div>
+          <div class="prox-progresso" id="proxProgresso">
+            <div class="skeleton skeleton-line larga" style="height:8px;border-radius:10px;margin:4px 0 10px"></div>
+          </div>
 
-        <div id="progressoGeral"></div> <br/>
-        <div id="proximosVencimentosCard" class="card-proxima">
-          <h4>
-            <i data-lucide="calendar-clock" class="icon icon-sm"></i>
-            Próximos Vencimentos
-          </h4>
+          <div id="proximaContaCard">
+            <div class="skeleton skeleton-line larga" style="height:48px;border-radius:12px;margin:8px 0 12px"></div>
+          </div>
 
-          <div id="listaProximosVencimentos">Carregando...</div>
+          <div id="listaProximosVencimentos">
+            <div class="skeleton skeleton-line larga" style="height:14px;margin-bottom:10px"></div>
+            <div class="skeleton skeleton-line media" style="height:14px;margin-bottom:10px"></div>
+            <div class="skeleton skeleton-line curta" style="height:14px"></div>
+          </div>
         </div>
 
         <div id="areaDividas" style="display: none"></div>
@@ -259,49 +348,72 @@
             Minhas Dívidas
           </h1>
 
-          <button class="btn-outline btn-sm" onclick="navegar('dashboard')">
+          <button class="btn-outline btn-sm" type="button" aria-label="Voltar para o dashboard" title="Voltar para o dashboard" onclick="navegar('dashboard')">
             <i data-lucide="arrow-left" class="icon icon-sm"></i>
           </button>
         </div>
-        <div class="busca-container">
-          <i data-lucide="search" class="icon icon-sm"></i>
-          <input
-            type="text"
-            id="buscaDivida"
-            placeholder="Buscar dívida..."
-            oninput="buscarComDebounce()"
-          />
+        <div class="dividas-toolbar">
+          <div class="busca-container">
+            <i data-lucide="search" class="icon icon-sm"></i>
+            <input
+              type="text"
+              id="buscaDivida"
+              placeholder="Buscar dívida..."
+              oninput="buscarComDebounce()"
+            />
+          </div>
+          <div class="ordenacao-compacta">
+            <i data-lucide="arrow-up-down" class="icon icon-sm"></i>
+            <select id="ordenacaoSelect" onchange="atualizarDashboard()" aria-label="Ordenar dívidas">
+              <option value="data">Próx. Vencimento</option>
+              <option value="nome">Nome</option>
+              <option value="status">Pendentes</option>
+              <option value="valor-maior">Maior valor</option>
+              <option value="valor-menor">Menor valor</option>
+            </select>
+          </div>
         </div>
 
-        <div id="resumoDividas"></div>
+        <div id="resumoDividas" style="display:none"></div>
 
-        <div class="filtros-dividas">
+        <div class="filtros-dividas" role="group" aria-label="Filtrar dívidas por status">
           <button
+            type="button"
             class="filtro-divida ativo"
             onclick="filtrarDividas('todas', this)"
           >
-            <i data-lucide="list" class="icon icon-sm"></i> Todas
+            <span>Todas</span>
+            <span class="filtro-contador" id="count-todas">0</span>
           </button>
 
           <button
+            type="button"
             class="filtro-divida"
             onclick="filtrarDividas('vencidas', this)"
           >
-            <i data-lucide="alert-circle" class="icon icon-sm"></i> Vencidas
+            <i data-lucide="alert-circle" class="icon icon-sm"></i>
+            <span>Vencidas</span>
+            <span class="filtro-contador" id="count-vencidas">0</span>
           </button>
 
           <button
+            type="button"
             class="filtro-divida"
             onclick="filtrarDividas('proximas', this)"
           >
-            <i data-lucide="clock" class="icon icon-sm"></i> Vencendo
+            <i data-lucide="clock" class="icon icon-sm"></i>
+            <span>Vencendo</span>
+            <span class="filtro-contador" id="count-proximas">0</span>
           </button>
 
           <button
+            type="button"
             class="filtro-divida"
             onclick="filtrarDividas('quitadas', this)"
           >
-            <i data-lucide="check-circle" class="icon icon-sm"></i> Quitadas
+            <i data-lucide="check-circle" class="icon icon-sm"></i>
+            <span>Quitadas</span>
+            <span class="filtro-contador" id="count-quitadas">0</span>
           </button>
         </div>
 
@@ -314,12 +426,12 @@
             <i data-lucide="plus-circle" class="icon"></i>
             Nova Dívida
           </h1>
-          <button class="btn-outline btn-sm" onclick="voltarParaDashboard()">
+          <button class="btn-outline btn-sm" type="button" aria-label="Voltar para o dashboard" title="Voltar para o dashboard" onclick="voltarParaDashboard()">
             <i data-lucide="arrow-left" class="icon icon-sm"></i>
           </button>
         </div>
         <div class="form-group" id="grupoNome">
-          <label>Nome</label
+          <label for="nomeDivida">Nome</label
           ><input
             type="text"
             id="nomeDivida"
@@ -328,7 +440,7 @@
           <span class="form-erro-texto">Informe um nome para a dívida.</span>
         </div>
         <div class="form-group">
-          <label>Categoria</label
+          <label for="categoriaDivida">Categoria</label
           ><select id="categoriaDivida">
             <option value="cartao">Cartão</option>
             <option value="emprestimo">Empréstimo</option>
@@ -345,7 +457,7 @@
           </select>
         </div>
         <div class="form-group" id="grupoValor">
-          <label>Valor Total (R$)</label
+          <label for="valorTotal">Valor Total (R$)</label
           ><input
             type="number"
             id="valorTotal"
@@ -359,11 +471,11 @@
             type="checkbox"
             id="parceladaCheck"
             onchange="toggleParcelamento()"
-          /><label>Parcelada</label>
+          /><label for="parceladaCheck">Parcelada</label>
         </div>
         <div id="parcelamentoFields" style="display: none">
           <div class="form-group" id="grupoParcelas">
-            <label>Nº Parcelas</label
+            <label for="numParcelas">Nº Parcelas</label
             ><input
               type="number"
               id="numParcelas"
@@ -374,20 +486,20 @@
             <span class="form-erro-texto">Mínimo de 2 parcelas.</span>
           </div>
           <div class="form-group">
-            <label>Valor Parcela (R$)</label
+            <label for="valorParcela">Valor Parcela (R$)</label
             ><input type="number" id="valorParcela" readonly />
           </div>
         </div>
         <div class="form-group" id="grupoData">
-          <label>Data 1º Vencimento</label
+          <label for="dataVencimento">Data 1º Vencimento</label
           ><input type="date" id="dataVencimento" />
           <span class="form-erro-texto">Selecione a data do primeiro vencimento.</span>
         </div>
         <div class="form-group">
-          <label>Observações</label><textarea id="observacaoDivida"></textarea>
+          <label for="observacaoDivida">Observações</label><textarea id="observacaoDivida"></textarea>
         </div>
         <div class="form-group">
-          <label>Status</label
+          <label for="statusDivida">Status</label
           ><select id="statusDivida">
             <option value="pendente">Pendente</option>
             <option value="pago">Pago (todas)</option>
@@ -404,83 +516,80 @@
             <i data-lucide="line-chart" class="icon"></i>
             Relatórios
           </h1>
-          <button class="btn-outline btn-sm" onclick="navegar('dashboard')">
+          <button class="btn-outline btn-sm" type="button" aria-label="Voltar para o dashboard" title="Voltar para o dashboard" onclick="navegar('dashboard')">
             <i data-lucide="arrow-left" class="icon icon-sm"></i>
           </button>
         </div>
 
-        <div class="filtros-relatorio">
-          <span
-            class="filtro-btn ativo"
-            data-filtro="todas"
-            onclick="filtrarRelatorio('todas', this)"
-            >Todas</span
-          >
-          <span
-            class="filtro-btn"
-            data-filtro="pendente"
-            onclick="filtrarRelatorio('pendente', this)"
-            >Pendentes</span
-          >
-          <span
-            class="filtro-btn"
-            data-filtro="pago"
-            onclick="filtrarRelatorio('pago', this)"
-            >Pagas</span
-          >
-        </div>
-
-        <div class="filtro-periodo">
-          <label>Período:</label
-          ><input
-            type="month"
-            id="filtroMes"
-            onchange="aplicarFiltroPeriodo()"
-          />
-          <button class="btn-sm btn-outline" onclick="limparFiltroPeriodo()" style="width: auto; padding: 0 14px">
-            Limpar
-          </button>
-        </div>
-
-        <div class="resumo-cards" id="resumoRelatorio">
-          <div class="card">
-            <h3>
-              <i data-lucide="banknote" class="icon icon-sm"></i>
-              Pendente
-            </h3>
-            <div class="valor" id="relPendente">R$ 0,00</div>
+        <!-- CONTROLES UNIFICADOS -->
+        <div class="relatorio-controles">
+          <div class="filtros-relatorio" role="group" aria-label="Filtrar por status">
+            <button
+              type="button"
+              class="filtro-btn ativo"
+              data-filtro="todas"
+              onclick="filtrarRelatorio('todas', this)"
+            >Todas</button>
+            <button
+              type="button"
+              class="filtro-btn"
+              data-filtro="pendente"
+              onclick="filtrarRelatorio('pendente', this)"
+            >Pendentes</button>
+            <button
+              type="button"
+              class="filtro-btn"
+              data-filtro="pago"
+              onclick="filtrarRelatorio('pago', this)"
+            >Pagas</button>
           </div>
 
-          <div class="card">
-            <h3>
-              <i data-lucide="badge-check" class="icon icon-sm"></i>
-              Pago
-            </h3>
-            <div class="valor" id="relPago">R$ 0,00</div>
-          </div>
-
-          <div class="card">
-            <h3>
-              <i data-lucide="layers" class="icon icon-sm"></i>
-              Parcelas
-            </h3>
-            <div class="valor" id="relParcelas">0</div>
-          </div>
-
-          <div class="card">
-            <h3>
-              <i data-lucide="target" class="icon icon-sm"></i>
-              Quitação
-            </h3>
-            <div class="valor" id="relPercentual">0%</div>
+          <div class="filtro-periodo">
+            <div class="filtro-periodo-input">
+              <i data-lucide="calendar" class="icon icon-sm"></i>
+              <input
+                type="month"
+                id="filtroMes"
+                onchange="aplicarFiltroPeriodo()"
+                aria-label="Filtrar por mês"
+              />
+            </div>
+            <button type="button" class="btn-limpar-periodo" onclick="limparFiltroPeriodo()" title="Limpar período" aria-label="Limpar filtro de período">
+              <i data-lucide="x" class="icon icon-sm"></i>
+            </button>
           </div>
         </div>
-        <div class="card-progresso-geral">
-          <h3>
-            <i data-lucide="trending-up" class="icon icon-sm"></i>
-            Evolução da Quitação
-          </h3>
 
+        <!-- PRÓXIMO FOCO -->
+        <div class="relatorio-foco" id="relatorioFoco"></div>
+
+        <!-- PAINEL DE MÉTRICAS (2 COLUNAS) -->
+        <div class="relatorio-metricas-grid">
+          <div class="metrica-card pendente">
+            <div class="metrica-header">
+              <span class="metrica-dot"></span>
+              <span class="metrica-label">Pendente</span>
+            </div>
+            <div class="metrica-valor" id="relPendente">R$ 0,00</div>
+          </div>
+
+          <div class="metrica-card pago">
+            <div class="metrica-header">
+              <span class="metrica-dot"></span>
+              <span class="metrica-label">Pago</span>
+            </div>
+            <div class="metrica-valor" id="relPago">R$ 0,00</div>
+          </div>
+        </div>
+
+        <!-- BARRA DE QUITAÇÃO INTEGRADA -->
+        <div class="relatorio-progresso-card">
+          <div class="progresso-header">
+            <span class="progresso-status" id="textoQuitacao">0% quitado</span>
+            <span class="progresso-detalhe">
+              <span id="relParcelas">0</span> parcelas • <span id="relPercentual">0%</span>
+            </span>
+          </div>
           <div class="progresso-barra">
             <div
               class="progresso-preenchimento"
@@ -488,54 +597,55 @@
               style="width: 0%"
             ></div>
           </div>
-
-          <div id="textoQuitacao">0% quitado</div>
-        </div>
-        <div id="resumoFinanceiroCard" class="card-proxima">
-          <h3>
-            <i data-lucide="wallet" class="icon icon-sm"></i>
-            Resumo Financeiro
-          </h3>
-
-          <div id="resumoFinanceiroConteudo"></div>
         </div>
 
-        <div class="grafico-container">
-          <canvas id="graficoDividas"></canvas>
+        <canvas id="graficoDividas" style="display:none"></canvas>
+
+        <!-- GRÁFICO DE CATEGORIAS EM DESTAQUE -->
+          <div class="card grafico-categorias-card">
+          <div class="grafico-card-header">
+            <h3><i data-lucide="chart-pie" class="icon icon-sm"></i> Distribuição por Categoria</h3>
+          </div>
+          <div class="grafico-wrapper">
+            <canvas id="graficoCategorias"></canvas>
+          </div>
         </div>
 
-        <h3 style="display: flex; align-items: center; gap: 6px; margin: 10px 0 0">
-          <i data-lucide="pie-chart" class="icon icon-sm"></i> Por categoria
-        </h3>
-        <div class="grafico-categorias-container">
-          <canvas id="graficoCategorias"></canvas>
-        </div>
+        <details class="relatorio-bloco-relacionado">
+          <summary>Ver ranking das dívidas</summary>
+          <div id="rankingDividas"></div>
+        </details>
 
-        <div id="rankingDividas"></div>
-
-        <h3 style="display: flex; align-items: center; gap: 6px; margin: 10px 0">
-          <i data-lucide="list-checks" class="icon icon-sm"></i> Detalhamento
-        </h3>
+        <details class="relatorio-bloco-relacionado" open>
+        <summary class="relatorio-detalhamento-cabecalho">
+          <span class="relatorio-detalhamento-titulo">
+            <span class="eyebrow">LISTA</span>
+            <strong><i data-lucide="list-checks" class="icon icon-sm"></i> Detalhamento</strong>
+          </span>
+          <span id="relatorioResultado" class="relatorio-ajuda"></span>
+        </summary>
 
         <div class="lista-dividas" id="listaRelatorio"></div>
+        </details>
       </div>
 
       <div id="assistenteScreen" class="screen">
         <div class="header">
           <h1><i data-lucide="bot" class="icon"></i> Assistente</h1>
-          <button class="btn-outline btn-sm" onclick="navegar('dashboard')">
+          <button class="btn-outline btn-sm" type="button" aria-label="Voltar para o dashboard" title="Voltar para o dashboard" onclick="navegar('dashboard')">
             <i data-lucide="arrow-left" class="icon icon-sm"></i>
           </button>
         </div>
 
-        <div class="assistente-tabs">
-          <button class="assistente-tab ativo" onclick="abrirTabAssistente('visao', this)">Visao Geral</button>
-          <button class="assistente-tab" onclick="abrirTabAssistente('orcamento', this)">Orcamento</button>
-          <button class="assistente-tab" onclick="abrirTabAssistente('simulacao', this)">Simulacao</button>
+        <div class="assistente-tabs" role="tablist" aria-label="Seções do Assistente">
+          <button class="assistente-tab ativo" id="tab-visao" role="tab" aria-selected="true" aria-controls="painel-visao" onclick="abrirTabAssistente('visao', this)">Visão Geral</button>
+          <button class="assistente-tab" id="tab-orcamento" role="tab" aria-selected="false" aria-controls="painel-orcamento" onclick="abrirTabAssistente('orcamento', this)">Orçamento</button>
+          <button class="assistente-tab" id="tab-simulacao" role="tab" aria-selected="false" aria-controls="painel-simulacao" onclick="abrirTabAssistente('simulacao', this)">Simulação</button>
+          <button class="assistente-tab" id="tab-chat" role="tab" aria-selected="false" aria-controls="painel-chat" onclick="abrirTabAssistente('chat', this)">Chat IA</button>
         </div>
 
         <!-- VISAO GERAL -->
-        <div class="assistente-painel ativo" id="painel-visao">
+        <div class="assistente-painel ativo" id="painel-visao" role="tabpanel" aria-labelledby="tab-visao">
           <div class="assistente-secao">
             <h3><i data-lucide="zap" class="icon icon-sm"></i> Indicadores</h3>
             <div class="indicadores-grid" id="assistente-indicadores">
@@ -546,6 +656,13 @@
           </div>
 
           <div class="assistente-secao">
+            <h3><i data-lucide="list-checks" class="icon icon-sm"></i> Plano de ação</h3>
+            <div class="assistente-acoes" id="assistente-acoes"></div>
+          </div>
+
+          <details class="assistente-detalhes">
+            <summary>Ver análises detalhadas</summary>
+          <div class="assistente-secao">
             <h3><i data-lucide="lightbulb" class="icon icon-sm"></i> Insights da IA</h3>
             <div class="insight-lista" id="assistente-insights">
               <div class="skeleton-card" style="height:60px"></div>
@@ -554,20 +671,21 @@
           </div>
 
           <div class="assistente-secao">
-            <h3><i data-lucide="shield" class="icon icon-sm"></i> Reserva de Emergencia</h3>
+            <h3><i data-lucide="shield" class="icon icon-sm"></i> Reserva de Emergência</h3>
             <div class="card" id="assistente-reserva"></div>
           </div>
 
           <div class="assistente-secao">
-            <h3><i data-lucide="trending-up" class="icon icon-sm"></i> Projecao 6 Meses</h3>
+            <h3><i data-lucide="trending-up" class="icon icon-sm"></i> Projeção 6 Meses</h3>
             <div style="background:var(--bg-card);border-radius:18px;border:1px solid var(--border-light);padding:15px;height:200px">
               <canvas id="graficoProjecao"></canvas>
             </div>
           </div>
+          </details>
         </div>
 
         <!-- ORCAMENTO -->
-        <div class="assistente-painel" id="painel-orcamento">
+        <div class="assistente-painel" id="painel-orcamento" role="tabpanel" aria-labelledby="tab-orcamento">
           <div class="assistente-secao">
             <h3><i data-lucide="wallet" class="icon icon-sm"></i> Renda</h3>
             <div class="renda-form">
@@ -598,7 +716,7 @@
                 <input type="number" id="metaEconomia" placeholder="0,00" oninput="salvarOrcamento()">
               </div>
               <div class="form-group" style="margin:0">
-                <label>Reserva de emergencia desejada (R$)</label>
+                <label>Reserva de emergência desejada (R$)</label>
                 <input type="number" id="metaReserva" placeholder="0,00" oninput="salvarOrcamento()">
               </div>
               <div class="form-group" style="margin:0">
@@ -607,14 +725,30 @@
               </div>
             </div>
           </div>
+
+          <div class="assistente-secao">
+            <h3><i data-lucide="bell" class="icon icon-sm"></i> Lembretes</h3>
+            <div class="renda-form">
+              <div class="form-group" style="margin:0">
+                <label for="antecedenciaNotificacao">Avisar antes do vencimento</label>
+                <select id="antecedenciaNotificacao" onchange="salvarPreferenciaNotificacao(this.value)">
+                  <option value="0">No dia do vencimento</option>
+                  <option value="1">1 dia antes</option>
+                  <option value="3">3 dias antes</option>
+                  <option value="7">7 dias antes</option>
+                </select>
+                <small class="campo-ajuda">Parcelas atrasadas continuam gerando alerta até serem pagas.</small>
+              </div>
+            </div>
+          </div>
         </div>
 
         <!-- SIMULACAO -->
-        <div class="assistente-painel" id="painel-simulacao">
+        <div class="assistente-painel" id="painel-simulacao" role="tabpanel" aria-labelledby="tab-simulacao">
 
           <!-- Resumo geral -->
           <div class="assistente-secao">
-            <h3><i data-lucide="calculator" class="icon icon-sm"></i> Visao Geral</h3>
+            <h3><i data-lucide="calculator" class="icon icon-sm"></i> Visão Geral</h3>
             <div id="simulacao-resultado">
               <p style="color:var(--text-secondary);font-size:14px">Preencha o orcamento para ver a simulacao.</p>
             </div>
@@ -626,9 +760,9 @@
             <div id="simulacao-ranking"></div>
           </div>
 
-          <!-- Estrategia -->
+          <!-- Estratégia -->
           <div class="assistente-secao">
-            <h3><i data-lucide="route" class="icon icon-sm"></i> Estrategia de Pagamento</h3>
+            <h3><i data-lucide="route" class="icon icon-sm"></i> Estratégia de Pagamento</h3>
             <div style="display:flex;gap:8px;margin-bottom:12px">
               <button class="filtro-btn ativo" id="btn-avalanche" onclick="selecionarEstrategia('avalanche', this)">Avalanche</button>
               <button class="filtro-btn" id="btn-bola" onclick="selecionarEstrategia('bola', this)">Bola de Neve</button>
@@ -663,30 +797,61 @@
         </div>
 
         <!-- IA CHAT -->
+        <div class="assistente-painel" id="painel-chat" role="tabpanel" aria-labelledby="tab-chat">
+          <div class="assistente-secao" style="margin-bottom: 8px">
+            <h3><i data-lucide="sparkles" class="icon icon-sm"></i> Consultoria com IA (Groq)</h3>
+            <p style="font-size: 13px; color: var(--text-secondary); margin-bottom: 12px; line-height: 1.45">
+              Converse com a inteligência artificial para receber conselhos e estratégias com base nas suas dívidas cadastradas.
+            </p>
+
+            <div class="chip-perguntas">
+              <button class="chip" type="button" onclick="window.enviarPerguntaChip('O que devo priorizar pagar primeiro?')">O que pagar primeiro?</button>
+              <button class="chip" type="button" onclick="window.enviarPerguntaChip('Como renegociar minhas contas atrasadas?')">Como renegociar?</button>
+              <button class="chip" type="button" onclick="window.enviarPerguntaChip('Como posso acelerar a quitação das minhas parcelas?')">Acelerar quitação?</button>
+              <button class="chip" type="button" onclick="window.enviarPerguntaChip('Como montar minha reserva de emergência?')">Criar reserva?</button>
+            </div>
+
+            <div class="assistente-chat" id="chatMensagens" style="min-height: 260px; max-height: 380px; overflow-y: auto; padding: 10px 2px; display: flex; flex-direction: column; gap: 10px">
+              <div class="chat-mensagem assistente">
+                <div class="chat-avatar"><i data-lucide="bot" class="icon icon-sm"></i></div>
+                <div class="chat-balao">
+                  Olá! Sou seu assistente financeiro inteligente. Já consigo consultar seus valores e prazos cadastrados. Como posso ajudar você hoje?
+                </div>
+              </div>
+            </div>
+
+            <form class="chat-input-row" id="formChat" onsubmit="event.preventDefault(); window.enviarMensagemChat();" style="position: static; margin-top: 12px">
+              <input type="text" id="chatInput" placeholder="Pergunte algo sobre suas finanças..." autocomplete="off" />
+              <button type="submit" id="btnEnviarChat" aria-label="Enviar mensagem">
+                <i data-lucide="send" class="icon icon-sm"></i>
+              </button>
+            </form>
+          </div>
+        </div>
       </div>
 
-      <button class="fab" id="fabNovaDivida" onclick="abrirNovaDivida()" title="Nova divida">
+      <button class="fab" id="fabNovaDivida" type="button" onclick="abrirNovaDivida()" title="Nova dívida" aria-label="Adicionar nova dívida">
         <i data-lucide="plus" style="width:28px;height:28px;stroke:white;fill:none;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round"></i>
       </button>
 
-      <div class="nav-bottom">
-        <div class="nav-item active" data-tela="dashboard" onclick="navegar('dashboard')">
+      <nav class="nav-bottom" aria-label="Navegação principal">
+        <button class="nav-item active" type="button" data-tela="dashboard" aria-current="page" onclick="navegar('dashboard')">
           <i data-lucide="layout-dashboard" class="icon"></i>
           Dashboard
-        </div>
-        <div class="nav-item" data-tela="dividas" onclick="navegar('dividas')">
+        </button>
+        <button class="nav-item" type="button" data-tela="dividas" onclick="navegar('dividas')">
           <i data-lucide="credit-card" class="icon"></i>
-          Dividas
-        </div>
-        <div class="nav-item" data-tela="assistente" onclick="navegar('assistente')">
+          Dívidas
+        </button>
+        <button class="nav-item" type="button" data-tela="assistente" onclick="navegar('assistente')">
           <i data-lucide="bot" class="icon"></i>
           Assistente
-        </div>
-        <div class="nav-item" data-tela="relatorios" onclick="navegar('relatorios')">
+        </button>
+        <button class="nav-item" type="button" data-tela="relatorios" onclick="navegar('relatorios')">
           <i data-lucide="bar-chart-3" class="icon"></i>
-          Relatorios
-        </div>
-      </div>
+          Relatórios
+        </button>
+      </nav>
 
       <!-- App JS -->
       <script src="js/app.js"></script>

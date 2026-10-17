@@ -1,0 +1,21 @@
+{
+  "rules": {
+    "usuarios": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        ".write": "auth != null && auth.uid === $uid",
+        "perfil": {
+          ".validate": "newData.hasChildren(['nome', 'email']) && newData.child('nome').isString() && newData.child('email').isString()"
+        },
+        "dividas": {
+          "$dividaId": {
+            ".validate": "newData.hasChildren(['id', 'nome', 'valorTotal', 'parcelas']) && newData.child('id').val() === $dividaId && newData.child('nome').isString() && newData.child('valorTotal').isNumber() && newData.child('valorTotal').val() > 0 && newData.child('parcelas').hasChildren()"
+          }
+        },
+        "orcamento": {
+          ".validate": "newData.hasChildren(['rendaMensal', 'rendasExtras', 'despesas', 'metaEconomia', 'metaReserva', 'reservaAtual']) && newData.child('rendaMensal').isNumber() && newData.child('metaEconomia').isNumber() && newData.child('metaReserva').isNumber() && newData.child('reservaAtual').isNumber()"
+        }
+      }
+    }
+  }
+}
