@@ -101,6 +101,8 @@ async function verificarIdToken(token) {
   if (payload.aud !== PROJECT_ID) return null;
   if (payload.iss !== "https://securetoken.google.com/" + PROJECT_ID) return null;
   if (typeof payload.sub !== "string" || !payload.sub || payload.sub.length > 128) return null;
+  // Contas com email não confirmado não usam a cota: impede criar contas em massa para gastar a Groq
+  if (payload.email_verified !== true) return null;
   if (!(payload.exp > agora)) return null;
   if (!(payload.iat <= agora + 300)) return null;
   if (!(payload.auth_time <= agora + 300)) return null;

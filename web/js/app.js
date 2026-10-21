@@ -39,6 +39,8 @@
           formularioModificado = false;
         let filtroDividasAtual = "todas";
         let isLoading = false;
+        // true enquanto cadastrar/login tratam uma conta de email ainda não confirmada
+        let verificandoEmail = false;
 
         const hojeStr = () => new Date().toISOString().split("T")[0];
 
@@ -51,7 +53,7 @@
         };
         const agoraISO = () => new Date().toISOString();
         const formatarData = (d) =>
-          d ? d.split("-").reverse().join("/") : "-";
+          d ? escapeHtml(String(d).split("-").reverse().join("/")) : "-";
         const formatarDataHora = (iso) =>
           iso
             ? new Date(iso).toLocaleDateString("pt-BR") +
@@ -83,6 +85,9 @@
             .replace(/"/g, "&quot;")
             .replace(/'/g, "&#039;");
         }
+
+        // Argumento de função JS dentro de atributo onclick: string JS válida + escape HTML
+        const jsArg = (v) => escapeHtml(JSON.stringify(String(v ?? "")));
 
         function verificarAutenticacao() {
           if (!currentUser) {
@@ -290,15 +295,18 @@
           setBtnLoading(btn, true);
           erroEl.textContent = "";
           try {
+            // Conta só acessa dados depois de confirmar o email (regras do RTDB exigem email_verified)
+            verificandoEmail = true;
             const uc = await auth.createUserWithEmailAndPassword(e, s);
             await uc.user.updateProfile({ displayName: n });
-            await db
-              .ref("usuarios/" + uc.user.uid + "/perfil")
-              .set({ nome: n, email: e, criadoEm: agoraISO() });
-            mostrarToast("Conta criada! Faca login.", "sucesso");
+            await uc.user.sendEmailVerification();
+            await auth.signOut();
+            verificandoEmail = false;
+            mostrarToast("Conta criada! Confirme pelo link enviado ao seu email e depois faça login.", "sucesso");
             window.toggleAuthForm("login");
             document.getElementById("loginEmail").value = e;
           } catch (er) {
+            verificandoEmail = false;
             if (er.code === "auth/email-already-in-use")
               erroEl.textContent = "Email já cadastrado.";
             else if (er.code === "auth/invalid-email")
@@ -322,8 +330,17 @@
           setBtnLoading(btn, true);
           erroEl.textContent = "";
           try {
-            await auth.signInWithEmailAndPassword(e, s);
+            verificandoEmail = true;
+            const uc = await auth.signInWithEmailAndPassword(e, s);
+            if (!uc.user.emailVerified) {
+              await uc.user.sendEmailVerification().catch(() => {});
+              await auth.signOut();
+              erroEl.textContent =
+                "Confirme seu email antes de entrar. Reenviamos o link de confirmação.";
+            }
+            verificandoEmail = false;
           } catch (er) {
+            verificandoEmail = false;
             if (
               er.code === "auth/user-not-found" ||
               er.code === "auth/invalid-credential"
@@ -371,6 +388,7 @@
 
           if (!userJson || userJson === "null" || userJson === "undefined") {
             console.log("Usuário deslogado");
+            if (window.limparChatAssistente) window.limparChatAssistente();
             sessionStorage.removeItem("userLoggedIn");
             sessionStorage.removeItem("userEmail");
             sessionStorage.removeItem("userUid");
@@ -1412,7 +1430,7 @@
                     ${formatarMoeda(proxima.valor)}
                 </strong>
             </div>
-            <button class="btn-proxima-acao" type="button" onclick="event.stopPropagation();window.pagarParcela('${escapeHtml(proxima.dividaId)}','${escapeHtml(proxima.parcelaId)}')">
+            <button class="btn-proxima-acao" type="button" onclick="event.stopPropagation();window.pagarParcela(${jsArg(proxima.dividaId)},${jsArg(proxima.parcelaId)})">
                 <i data-lucide="check-circle" class="icon icon-sm"></i> Marcar como paga
             </button>
         </div>`
@@ -1594,7 +1612,7 @@
 
               return `<div class="divida-card ${getClasseVencimento(d)}" id="card-${escapeHtml(d.id)}">
 
-                        <div class="divida-cabecalho" role="button" tabindex="0" aria-expanded="false" aria-controls="parcelas-${escapeHtml(d.id)}" onclick="window.toggleExpansao('${escapeHtml(d.id)}')" onkeydown="if(event.key === 'Enter' || event.key === ' '){event.preventDefault();window.toggleExpansao('${escapeHtml(d.id)}')}">
+                        <div class="divida-cabecalho" role="button" tabindex="0" aria-expanded="false" aria-controls="parcelas-${escapeHtml(d.id)}" onclick="window.toggleExpansao(${jsArg(d.id)})" onkeydown="if(event.key === 'Enter' || event.key === ' '){event.preventDefault();window.toggleExpansao(${jsArg(d.id)})}">
                             <div class="divida-info-col">
                                 <div class="divida-nome-linha">
                                   <span class="nome">${safeNome}</span>
@@ -1635,8 +1653,8 @@
                                     <strong class="parcela-valor">${formatarMoeda(p.valor || 0)}</strong>
                                 </div>
                                 <button class="parcela-acao btn-sm ${p.status === "pendente" ? "btn-success" : "btn-warning"}"
-    aria-label="${p.status === "pendente" ? "Pagar" : "Reabrir"} parcela ${p.numero}"
-    onclick="event.stopPropagation();window.pagarParcela('${d.id}','${p.id}')"
+    aria-label="${p.status === "pendente" ? "Pagar" : "Reabrir"} parcela ${escapeHtml(String(p.numero))}"
+    onclick="event.stopPropagation();window.pagarParcela(${jsArg(d.id)},${jsArg(p.id)})"
     >
     ${
       p.status === "pendente"
@@ -1650,12 +1668,12 @@
                                 <div class="divida-rodape-acoes">
                                     <button class="btn-sm btn-outline"
                                         aria-label="Editar ${safeNome}"
-                                        onclick="event.stopPropagation();window.editarDivida('${escapeHtml(d.id)}')">
+                                        onclick="event.stopPropagation();window.editarDivida(${jsArg(d.id)})">
                                         <i data-lucide="pencil" class="icon icon-sm"></i> Editar
                                     </button>
                                     <button class="btn-sm btn-outline btn-perigo"
                                         aria-label="Excluir ${safeNome}"
-                                        onclick="event.stopPropagation();window.excluirDivida('${escapeHtml(d.id)}')">
+                                        onclick="event.stopPropagation();window.excluirDivida(${jsArg(d.id)})">
                                         <i data-lucide="trash-2" class="icon icon-sm"></i> Excluir
                                     </button>
                                 </div>
@@ -1810,7 +1828,7 @@
                 const totalVal = d.parcelas.reduce((s, p) => s + (p.valor || 0), 0);
                 const pagasCount = d.parcelas.filter((p) => p.status === "pago").length;
                 return `<div class="divida-card" id="card-relatorio-${escapeHtml(d.id)}">
-                        <div class="divida-cabecalho" role="button" tabindex="0" aria-expanded="false" aria-controls="parcelas-relatorio-${escapeHtml(d.id)}" onclick="window.toggleExpansao('${escapeHtml(d.id)}')" onkeydown="if(event.key === 'Enter' || event.key === ' '){event.preventDefault();window.toggleExpansao('${escapeHtml(d.id)}')}">
+                        <div class="divida-cabecalho" role="button" tabindex="0" aria-expanded="false" aria-controls="parcelas-relatorio-${escapeHtml(d.id)}" onclick="window.toggleExpansao(${jsArg(d.id)})" onkeydown="if(event.key === 'Enter' || event.key === ' '){event.preventDefault();window.toggleExpansao(${jsArg(d.id)})}">
                             <div class="divida-info-col">
                               <div class="divida-nome-linha">
                                 <span class="nome">${escapeHtml(d.nome)}</span>
@@ -1838,7 +1856,7 @@
                                 <div class="parcela-descricao">
                                   <span class="parcela-status"><i data-lucide="${p.status === "pago" ? "check-circle" : "circle-dashed"}" class="icon icon-sm"></i></span>
                                   <span class="parcela-identificacao">
-                                    <strong>${p.numero}ª parcela</strong>
+                                    <strong>${escapeHtml(String(p.numero))}ª parcela</strong>
                                     <span class="parcela-vencimento">Vence em ${formatarData(p.vencimento)}</span>
                                     ${p.pagoEm ? `<span class="parcela-historico">Pago: ${formatarDataHora(p.pagoEm)}</span>` : ""}
                                   </span>
@@ -2113,6 +2131,7 @@ window.logout = async function() {
   dividas = [];
   parcelasNotificadas = new Set();
   sessionStorage.clear();
+  if (window.limparChatAssistente) window.limparChatAssistente();
 
   try {
     await firebase.auth().signOut();
@@ -2137,6 +2156,12 @@ window.logout = async function() {
 
         // Init
         auth.onAuthStateChanged((user) => {
+          if (user && !user.emailVerified) {
+            // Email não confirmado: não abre o app (sessão antiga é encerrada)
+            if (!verificandoEmail) auth.signOut();
+            hideLoading();
+            return;
+          }
           if (user) {
             if (window.Android) {
               Android.salvarUid(user.uid);
@@ -2148,6 +2173,7 @@ window.logout = async function() {
             currentUser = null;
             dividas = [];
             limparListeners();
+            if (window.limparChatAssistente) window.limparChatAssistente();
             mostrarTelaAuth();
           }
 
@@ -2159,6 +2185,9 @@ window.logout = async function() {
           // Firebase conecta em background — sem overlay na tela de auth
           verificarAtualizacaoApp();
         };
+
+        // Mesma restrição do app nativo (MainActivity.APK_URL_PREFIX)
+        const APK_URL_PREFIX = "https://github.com/Heberttdev/App_Financas/releases/download/";
 
         function verificarAtualizacaoApp() {
           if (!window.Android || typeof window.Android.getVersionCode !== "function") return;
@@ -2179,10 +2208,11 @@ window.logout = async function() {
           banner.style.cssText =
             "position:fixed;top:0;left:0;right:0;z-index:3000;background:var(--gradient);color:#fff;padding-top:calc(12px + env(safe-area-inset-top));padding-bottom:12px;padding-left:16px;padding-right:16px;display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:13px;";
           banner.innerHTML = `
-            <span style="display:flex;align-items:center;gap:6px"><i data-lucide="rocket" class="icon icon-sm"></i>Nova versao ${versionName} disponivel</span>
+            <span style="display:flex;align-items:center;gap:6px"><i data-lucide="rocket" class="icon icon-sm"></i>Nova versao ${escapeHtml(versionName)} disponivel</span>
             <button style="background:#fff;color:var(--primary);border:none;border-radius:8px;padding:6px 12px;font-weight:600;font-size:12px;cursor:pointer">Atualizar</button>
           `;
           banner.querySelector("button").onclick = () => {
+            if (typeof apkUrl !== "string" || !apkUrl.startsWith(APK_URL_PREFIX)) return;
             window.open(apkUrl, "_blank");
           };
           document.body.prepend(banner);

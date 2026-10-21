@@ -2,8 +2,8 @@
   "rules": {
     "usuarios": {
       "$uid": {
-        ".read": "auth != null && auth.uid === $uid",
-        ".write": "auth != null && auth.uid === $uid",
+        ".read": "auth != null && auth.uid === $uid && auth.token.email_verified === true",
+        ".write": "auth != null && auth.uid === $uid && auth.token.email_verified === true",
         "perfil": {
           ".validate": "newData.hasChildren(['nome', 'email']) && newData.child('nome').isString() && newData.child('email').isString()"
         },

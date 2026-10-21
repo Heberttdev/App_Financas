@@ -856,7 +856,7 @@
         <input type="text" value="${escapeHtml(r.nome)}" placeholder="Descricao"
           style="flex:2;padding:8px;border:1px solid var(--border);border-radius:8px;background:var(--input-bg);color:var(--text);font-size:14px"
           onchange="editarRendaExtra(${i},'nome',this.value)">
-        <input type="number" value="${r.valor}" placeholder="Valor"
+        <input type="number" value="${escapeHtml(String(r.valor ?? ''))}" placeholder="Valor"
           style="flex:1;padding:8px;border:1px solid var(--border);border-radius:8px;background:var(--input-bg);color:var(--text);font-size:14px"
           onchange="editarRendaExtra(${i},'valor',parseFloat(this.value)||0)">
         <button onclick="removerRendaExtra(${i})" style="background:none;border:none;color:var(--danger);cursor:pointer;padding:4px;display:flex">
@@ -951,16 +951,21 @@
 
   // --- Chat IA (Groq via Cloudflare Worker) ---
 
-  const WORKER_URL_KEY = 'groq_worker_url';
+  // URL fixa: o ID token do usuário só pode ir para o nosso Worker
+  const WORKER_URL = 'https://groq-proxy.bahiacruz0.workers.dev';
   let historicoMensagensChat = [];
 
+  try { localStorage.removeItem('groq_worker_url'); } catch (e) {}
+
   function getWorkerUrl() {
-    return localStorage.getItem(WORKER_URL_KEY) || 'https://groq-proxy.bahiacruz0.workers.dev';
+    return WORKER_URL;
   }
 
-  window.setWorkerUrl = (url) => {
-    localStorage.setItem(WORKER_URL_KEY, url.trim());
-    console.log('Worker URL salva:', url.trim());
+  // Chamado no logout/troca de conta: a conversa não pode passar para o próximo usuário
+  window.limparChatAssistente = () => {
+    historicoMensagensChat = [];
+    const c = document.getElementById('chatMensagens');
+    if (c) c.innerHTML = '';
   };
 
   function coletarContextoFinanceiro() {
@@ -1057,14 +1062,6 @@
 
     const mensagem = input.value.trim();
     if (!mensagem) return;
-
-    if (!workerUrl) {
-      adicionarMensagemNaTela(
-        'Nenhum Worker configurado.\n\nNo console do navegador execute:\n\nwindow.setWorkerUrl("https://seu-worker.workers.dev")',
-        'assistente'
-      );
-      return;
-    }
 
     adicionarMensagemNaTela(mensagem, 'usuario');
     input.value = '';
