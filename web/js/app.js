@@ -415,15 +415,28 @@
         function usarDadosDoAndroid(userData) {
           if (window.Android) Android.salvarUid(userData.uid);
 
-          const user = {
-            uid: userData.uid,
-            displayName: userData.displayName || userData.email,
-            email: userData.email,
-            photoURL: userData.photoURL || "",
-          };
-
-          mostrarApp(user);
+          // O banco só aceita a sessão do SDK web; o app é aberto por auth.onAuthStateChanged
+          // depois que window.onGoogleIdToken autentica o SDK. Sem isso, a leitura é negada.
+          if (auth.currentUser) return;
+          setTimeout(() => {
+            if (auth.currentUser) return;
+            const erroEl = document.getElementById("loginErro");
+            if (erroEl)
+              erroEl.textContent =
+                "Não foi possível sincronizar sua conta. Atualize o aplicativo para a versão mais recente e entre novamente.";
+          }, 8000);
         }
+
+        // Chamado pelo app Android com o ID token do Google do login nativo
+        window.onGoogleIdToken = function (googleIdToken) {
+          if (auth.currentUser || typeof googleIdToken !== "string") return;
+          const credential = firebase.auth.GoogleAuthProvider.credential(googleIdToken);
+          auth.signInWithCredential(credential).catch((er) => {
+            console.error("Erro ao autenticar sessão web:", er);
+            const erroEl = document.getElementById("loginErro");
+            if (erroEl) erroEl.textContent = "Erro ao entrar. Tente novamente.";
+          });
+        };
 
         function atualizarSaudacao(user) {
           const nome = (user && (user.displayName || user.email || "").trim()) || "você";
@@ -748,6 +761,15 @@
               clearTimeout(timeout);
               console.error("❌ Erro no listener:", error);
               isLoading = false;
+
+              // Sem permissão não adianta repetir: a sessão é inválida, volta para o login
+              if (error && /permission/i.test(error.code || error.message || "")) {
+                dividas = carregarCacheDividas();
+                atualizarDashboard();
+                mostrarToast("Sessão expirada. Entre novamente.", "erro");
+                window.logout();
+                return;
+              }
 
               // Tentar recarregar após erro
               setTimeout(() => {

@@ -415,6 +415,8 @@ class MainActivity : AppCompatActivity() {
 
                 account?.idToken?.let { idToken ->
                     firebaseAuthWithGoogle(idToken)
+                    // O site também precisa da sessão Google para ler o banco (regras exigem auth)
+                    enviarGoogleTokenJavaScript(idToken)
                 } ?: run {
                     enviarErroJavaScript("Token do Google nao encontrado")
                 }
@@ -451,6 +453,27 @@ class MainActivity : AppCompatActivity() {
         if (user != null) {
             if (BuildConfig.DEBUG) android.util.Log.d(TAG, "Usuario logado")
             enviarUsuarioJavaScript(user)
+            // Renova a sessão do site caso ele não tenha uma (ex.: primeiro uso após atualizar)
+            googleSignInClient.silentSignIn().addOnCompleteListener { task ->
+                if (task.isSuccessful) {
+                    task.result?.idToken?.let { enviarGoogleTokenJavaScript(it) }
+                }
+            }
+        }
+    }
+
+    // ============================================
+    // ENTREGAR TOKEN GOOGLE AO SITE (Web SDK)
+    // ============================================
+    private fun enviarGoogleTokenJavaScript(googleIdToken: String) {
+        // JWT só tem caracteres base64url e pontos; qualquer outra coisa é descartada
+        if (!Regex("^[A-Za-z0-9_.-]+$").matches(googleIdToken)) return
+        runOnUiThread {
+            if (!origemPermitida()) return@runOnUiThread
+            webView.evaluateJavascript(
+                "window.onGoogleIdToken && window.onGoogleIdToken('$googleIdToken')",
+                null
+            )
         }
     }
 
