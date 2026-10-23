@@ -16,10 +16,14 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.ProgressBar
 import androidx.activity.OnBackPressedCallback
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import androidx.work.ExistingPeriodicWorkPolicy
@@ -123,6 +127,8 @@ class MainActivity : AppCompatActivity() {
 
         setContentView(R.layout.activity_main)
 
+        configurarBarrasDoSistema()
+
         configurarWorkManager()
 
         supportActionBar?.hide()
@@ -155,6 +161,38 @@ class MainActivity : AppCompatActivity() {
                     }
                 }
             }
+        )
+    }
+
+    // ============================================
+    // BARRAS DO SISTEMA (Android 15 desenha o app por baixo delas)
+    // ============================================
+    private fun configurarBarrasDoSistema() {
+        // Mesmo comportamento em todas as versões: o app desenha atrás das barras e aplica o recuo abaixo
+        enableEdgeToEdge()
+        val raiz = findViewById<View>(R.id.raiz)
+        // O conteúdo fica entre a barra de status, a barra de navegação e o teclado
+        ViewCompat.setOnApplyWindowInsetsListener(raiz) { v, insets ->
+            val barras = insets.getInsets(
+                WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout()
+            )
+            val teclado = insets.getInsets(WindowInsetsCompat.Type.ime())
+            v.setPadding(barras.left, barras.top, barras.right, maxOf(barras.bottom, teclado.bottom))
+            WindowInsetsCompat.CONSUMED
+        }
+        val noturno = (resources.configuration.uiMode and
+            android.content.res.Configuration.UI_MODE_NIGHT_MASK) ==
+            android.content.res.Configuration.UI_MODE_NIGHT_YES
+        aplicarTemaBarras(noturno)
+    }
+
+    // Ícones escuros nas barras quando o app está claro, e claros quando está escuro
+    private fun aplicarTemaBarras(escuro: Boolean) {
+        val controle = WindowCompat.getInsetsController(window, window.decorView)
+        controle.isAppearanceLightStatusBars = !escuro
+        controle.isAppearanceLightNavigationBars = !escuro
+        findViewById<View>(R.id.raiz)?.setBackgroundColor(
+            android.graphics.Color.parseColor(if (escuro) "#0F141A" else "#F6F7F9")
         )
     }
 
@@ -393,6 +431,13 @@ class MainActivity : AppCompatActivity() {
                 if (BuildConfig.DEBUG) android.util.Log.e(TAG, "Erro ao obter ID token", e)
                 ""
             }
+        }
+
+        // O site avisa quando o tema muda (o usuário pode escolher diferente do sistema)
+        @JavascriptInterface
+        fun definirTemaBarras(escuro: Boolean) {
+            if (!origemPermitida()) return
+            runOnUiThread { aplicarTemaBarras(escuro) }
         }
 
         @JavascriptInterface

@@ -3,7 +3,8 @@
     xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#F8FAFC">
+    android:id="@+id/raiz"
+    android:background="@color/app_bg">
 
     <androidx.swiperefreshlayout.widget.SwipeRefreshLayout
         android:id="@+id/swipeRefresh"
@@ -23,7 +24,7 @@
         android:layout_width="match_parent"
         android:layout_height="2dp"
         android:layout_gravity="top"
-        android:progressTint="#00C853"
+        android:progressTint="@color/app_primary"
         android:max="100"/>
 
     <!-- Skeleton nativo: cobre a abertura do app enquanto a WebView carrega -->
@@ -32,7 +33,7 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:orientation="vertical"
-        android:background="#F8FAFC"
+        android:background="@color/app_bg"
         android:padding="16dp"
         android:visibility="visible">
 

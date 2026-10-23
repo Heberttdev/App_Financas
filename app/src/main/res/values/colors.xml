@@ -4,4 +4,7 @@
     <color name="splash_background">#5B6CFF</color>
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
+    <!-- Fundo do app (paleta A); no modo escuro vem de values-night -->
+    <color name="app_bg">#F6F7F9</color>
+    <color name="app_primary">#1F4E79</color>
 </resources>

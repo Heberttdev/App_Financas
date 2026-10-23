@@ -268,10 +268,21 @@
           raiz.classList.remove("dark-mode");
         }
 
+        // No app Android, as barras do sistema acompanham o tema do site
+        const sincronizarBarrasAndroid = () => {
+          if (!window.Android || typeof Android.definirTemaBarras !== "function") return;
+          const escuro =
+            raiz.classList.contains("dark-mode") ||
+            (!raiz.classList.contains("light-mode") && prefereEscuro);
+          try { Android.definirTemaBarras(escuro); } catch (e) {}
+        };
+        sincronizarBarrasAndroid();
+
         window.alternarTema = () => {
           const escuro = raiz.classList.toggle("dark-mode");
           raiz.classList.toggle("light-mode", !escuro);
           localStorage.setItem("tema", escuro ? "dark" : "light");
+          sincronizarBarrasAndroid();
           if (document.getElementById("relatoriosScreen").classList.contains("active"))
             aplicarFiltroPeriodo();
           if (window.lucide) lucide.createIcons();
@@ -457,6 +468,26 @@
           else if (h < 18) periodo = "Boa tarde";
           const el = document.getElementById("saudacaoPessoa");
           if (el) el.textContent = `${periodo}, ${nome}`;
+          atualizarAvatar(user, nome);
+        }
+
+        // Foto da conta Google; sem foto (ou se falhar), mostra as iniciais
+        function atualizarAvatar(user, nome) {
+          const foto = document.getElementById("fotoUsuario");
+          const iniciais = document.getElementById("iniciaisUsuario");
+          if (!foto || !iniciais) return;
+          const mostrarIniciais = () => {
+            const partes = String(nome || "").split(/[\s@.]+/).filter(Boolean);
+            iniciais.textContent =
+              ((partes[0] || "?")[0] + (partes.length > 1 ? partes[partes.length - 1][0] : "")).toUpperCase();
+            foto.hidden = true;
+            iniciais.hidden = false;
+          };
+          const url = user && typeof user.photoURL === "string" ? user.photoURL : "";
+          if (!/^https:\/\//.test(url)) return mostrarIniciais();
+          foto.onerror = mostrarIniciais;
+          foto.onload = () => { foto.hidden = false; iniciais.hidden = true; };
+          foto.src = url;
         }
 
         // ============================================
