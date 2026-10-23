@@ -458,6 +458,7 @@
     if (graficoProjecaoInstance) graficoProjecaoInstance.destroy();
 
     const dados = projecao(6);
+    if (window.aplicarTemaGraficos) window.aplicarTemaGraficos();
     graficoProjecaoInstance = new Chart(canvas, {
       type: "line",
       data: {
@@ -466,12 +467,12 @@
           {
             label: "Saldo acumulado",
             data: dados.map((d) => d.valor),
-            borderColor: "#6c7bff",
-            backgroundColor: "rgba(108,123,255,0.1)",
+            borderColor: window.corTema ? corTema("--primary") : "#1F4E79",
+            backgroundColor: window.corTema ? corTema("--primary") + "22" : "rgba(31,78,121,0.13)",
             fill: true,
             tension: 0.4,
             pointRadius: 4,
-            pointBackgroundColor: "#6c7bff",
+            pointBackgroundColor: window.corTema ? corTema("--primary") : "#1F4E79",
           },
         ],
       },
@@ -712,7 +713,7 @@
           <strong style="color:var(--success)">${mesesCom ? mesesCom + " meses" : "—"}</strong>
         </div>
         ${ganho > 0 ? `
-          <div style="background:rgba(34,197,94,.12);border-radius:10px;padding:12px;text-align:center">
+          <div style="background:var(--success-soft);border-radius:10px;padding:12px;text-align:center">
             <div style="color:var(--success);font-weight:700;font-size:15px">-${ganho} meses de divida</div>
             ${economia > 0 ? `<div style="color:var(--text-secondary);font-size:12px;margin-top:4px">Economia de ~${formatarMoeda(economia)} em juros e tempo</div>` : ""}
           </div>` : `<div style="color:var(--text-secondary);font-size:13px;text-align:center">Aumente o valor para ver impacto significativo.</div>`}
@@ -740,7 +741,7 @@
         </div>
       </div>
       ${negativo ? `
-        <div style="background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.2);border-radius:10px;padding:10px 12px;margin-bottom:10px;display:flex;align-items:center;gap:8px;font-size:13px;color:var(--danger);font-weight:600">
+        <div style="background:var(--danger-soft);border:1px solid color-mix(in srgb, var(--danger) 25%, transparent);border-radius:10px;padding:10px 12px;margin-bottom:10px;display:flex;align-items:center;gap:8px;font-size:13px;color:var(--danger);font-weight:600">
           <i data-lucide="alert-triangle" style="width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"></i>
           Saldo negativo no mes! Reveja suas despesas.
         </div>` : ""}

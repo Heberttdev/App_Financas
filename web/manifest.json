@@ -4,12 +4,12 @@
   "description": "Controle financeiro pessoal inteligente",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#f5f7fb",
-  "theme_color": "#f5f7fb",
+  "background_color": "#F6F7F9",
+  "theme_color": "#F6F7F9",
   "orientation": "portrait",
   "icons": [
     {
-      "src": "/web/icon-512.png",
+      "src": "/icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"

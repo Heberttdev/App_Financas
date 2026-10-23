@@ -69,6 +69,17 @@
           dt.setMonth(dt.getMonth() + m);
           return dt.toISOString().split("T")[0];
         };
+        // Lê um token de cor do CSS (respeita modo claro/escuro); usado nos gráficos
+        const corTema = (nome) =>
+          getComputedStyle(document.documentElement).getPropertyValue(nome).trim();
+        window.corTema = corTema;
+        const aplicarTemaGraficos = () => {
+          if (!window.Chart) return;
+          Chart.defaults.color = corTema("--text-secondary");
+          Chart.defaults.borderColor = corTema("--border");
+        };
+        window.aplicarTemaGraficos = aplicarTemaGraficos;
+
         const formatarMoeda = (v) =>
           Number(v).toLocaleString("pt-BR", {
             style: "currency",
@@ -2003,12 +2014,15 @@
 
           document.getElementById("relPago").textContent = formatarMoeda(pag);
 
+          if (window.aplicarTemaGraficos) window.aplicarTemaGraficos();
+
+          aplicarTemaGraficos();
           graficoInstance = new Chart(ctx, {
             type: "doughnut",
             data: {
               labels: ["Pendentes", "Pagas"],
               datasets: [
-                { data: [pnd, pag], backgroundColor: ["#d93025", "#34a853"] },
+                { data: [pnd, pag], backgroundColor: [corTema("--danger"), corTema("--success")], borderColor: corTema("--bg-card") },
               ],
             },
             options: {
@@ -2038,19 +2052,20 @@
           if (!ctx) return;
           if (graficoCategoriasInstance) graficoCategoriasInstance.destroy();
 
+          // Paleta categórica equilibrada (Tableau 10): uma cor distinta por categoria
           const coresPorCategoria = {
-            cartao: "#1565c0",
-            emprestimo: "#c62828",
-            boleto: "#6a1b9a",
-            assinatura: "#2e7d32",
-            educacao: "#3949ab",
-            saude: "#c62828",
-            moradia: "#2e7d32",
-            transporte: "#ef6c00",
-            alimentacao: "#f9a825",
-            lazer: "#7b1fa2",
-            imposto: "#455a64",
-            outros: "#e65100",
+            cartao: "#4E79A7",
+            emprestimo: "#E15759",
+            boleto: "#B07AA1",
+            assinatura: "#76B7B2",
+            educacao: "#59A14F",
+            saude: "#FF9DA7",
+            moradia: "#9C755F",
+            transporte: "#F28E2B",
+            alimentacao: "#EDC948",
+            lazer: "#8CD17D",
+            imposto: "#BAB0AC",
+            outros: "#79706E",
           };
 
           const nomesPorCategoria = {
@@ -2081,6 +2096,9 @@
 
           if (!categoriasComValor.length) return;
 
+          if (window.aplicarTemaGraficos) window.aplicarTemaGraficos();
+
+          aplicarTemaGraficos();
           graficoCategoriasInstance = new Chart(ctx, {
             type: "pie",
             data: {
@@ -2093,6 +2111,7 @@
                   backgroundColor: categoriasComValor.map(
                     (cat) => coresPorCategoria[cat] || "#999",
                   ),
+                  borderColor: corTema("--bg-card"),
                 },
               ],
             },
