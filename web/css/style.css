@@ -12,7 +12,8 @@
   --primary-hover: #173B5C;
   --on-primary: #FFFFFF;
   --danger: #B3372F;
-  --success: #2E7D4F;
+  /* achado 16: verde escurecido para contraste AA no tema claro */
+  --success: #276B43;
   --warning: #9A5B0B;
   --primary-soft: color-mix(in srgb, var(--primary) 10%, transparent);
   --danger-soft: color-mix(in srgb, var(--danger) 10%, transparent);
@@ -122,7 +123,7 @@ input:focus-visible,
 select:focus-visible,
 textarea:focus-visible,
 [tabindex]:focus-visible {
-  outline: 3px solid color-mix(in srgb, var(--primary) 45%, transparent);
+  outline: 3px solid var(--primary);
   outline-offset: 2px;
 }
 
@@ -163,14 +164,15 @@ textarea:focus-visible,
   flex: 1;
   width: 100%;
   box-sizing: border-box;
-  padding-bottom: 90px;
+  /* achado 08: reserva espaco para o FAB (bottom 76px + altura 52px) nao cobrir a acao principal */
+  padding-bottom: 140px;
 }
 
 /* Celulares compactos: aproveita cada pixel da largura */
 @media (max-width: 380px) {
   .screen {
     padding: 12px;
-    padding-bottom: 90px;
+    padding-bottom: 140px;
   }
 
   .resumo-cards {
@@ -1046,7 +1048,7 @@ textarea:focus-visible,
 }
 
 .divida-cabecalho:focus-visible {
-  outline: 3px solid color-mix(in srgb, var(--primary) 45%, transparent);
+  outline: 3px solid var(--primary);
   outline-offset: -3px;
 }
 
@@ -1099,6 +1101,18 @@ textarea:focus-visible,
   color: var(--text);
   letter-spacing: -0.01em;
   line-height: 1.2;
+}
+
+/* achado 07: rotula o que o valor significa */
+.valor-rotulo {
+  display: block;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-secondary);
+  line-height: 1;
+  margin-top: 2px;
 }
 
 .divida-status-linha {
@@ -1250,6 +1264,19 @@ textarea:focus-visible,
   flex-shrink: 0;
 }
 
+/* achado 03: "Reabrir" discreto, nao compete com "Pagar" */
+.parcela-acao.parcela-reabrir {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  min-width: 0;
+  font-weight: 500;
+}
+.parcela-acao.parcela-reabrir:hover {
+  background: var(--bg-hover, rgba(0, 0, 0, 0.04));
+  color: var(--text);
+}
+
 .acoes-cabecalho {
   display: flex;
   gap: 6px;
@@ -1376,6 +1403,25 @@ textarea:focus-visible,
 .vencimento-valor {
   font-weight: 700;
   color: var(--warning);
+}
+
+/* achado 11: botao de pagar em cada linha do dashboard */
+.vencimento-pagar {
+  margin-left: 10px;
+  min-width: 44px;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  color: var(--success);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.vencimento-pagar:active {
+  transform: scale(0.92);
 }
 
 /* ============================================
@@ -3303,7 +3349,7 @@ input[type="range"]::-webkit-slider-thumb {
 
 .relatorio-bloco-relacionado > summary:focus-visible,
 .assistente-detalhes > summary:focus-visible {
-  outline: 3px solid color-mix(in srgb, var(--primary) 45%, transparent);
+  outline: 3px solid var(--primary);
   outline-offset: -3px;
 }
 
@@ -3437,6 +3483,17 @@ input[type="range"]::-webkit-slider-thumb {
 .filtro-divida {
   scroll-snap-align: start;
   flex-shrink: 0;
+}
+
+/* achado 13: em telas estreitas os chips quebram linha em vez de sumir fora da tela */
+@media (max-width: 420px) {
+  .filtros-dividas {
+    flex-wrap: wrap;
+    overflow-x: visible;
+  }
+  .filtro-divida {
+    flex-shrink: 1;
+  }
 }
 
 /* Botão + fica acima da barra inferior e da área segura (barra de gestos) */

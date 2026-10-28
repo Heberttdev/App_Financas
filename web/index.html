@@ -18,8 +18,8 @@
     <link rel="icon" type="image/png" sizes="512x512" href="/icon-512.png" />
     <link rel="stylesheet" href="css/style.css" />
 
-    <meta name="theme-color" content="#F6F7F9" media="(prefers-color-scheme: light)" />
-    <meta name="theme-color" content="#0F141A" media="(prefers-color-scheme: dark)" />
+    <!-- achado 28: meta controlada por JS acompanha o tema escolhido no app, nao so o do sistema -->
+    <meta name="theme-color" id="metaThemeColor" content="#0F141A" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-title" content="Dívidas" />
@@ -59,9 +59,9 @@
       <div id="conexaoStatus" class="conexao-status" role="status" aria-live="polite" hidden></div>
 
       <div class="modal-overlay" id="modalConfiguracoes" style="display:none">
-        <div class="modal configuracoes-modal">
+        <div class="modal configuracoes-modal" role="dialog" aria-modal="true" aria-labelledby="tituloConfiguracoes">
           <div class="modal-cabecalho">
-            <h2><i data-lucide="settings" class="icon"></i> Configurações</h2>
+            <h2 id="tituloConfiguracoes" tabindex="-1"><i data-lucide="settings" class="icon"></i> Configurações</h2>
             <button class="btn-icon" type="button" aria-label="Fechar configurações" onclick="fecharConfiguracoes()">&times;</button>
           </div>
           <div class="configuracao-item">
@@ -85,6 +85,7 @@
               <option value="3">3 dias antes</option>
               <option value="7">7 dias antes</option>
             </select>
+            <span id="notaLembreteAndroid" style="font-size:12px;color:var(--text-secondary);margin-top:6px;display:none">Os lembretes são enviados pelo app Android. No navegador a preferência fica salva, mas o aviso não é agendado.</span>
           </div>
           <button class="btn-outline configuracao-fechar" type="button" onclick="fecharConfiguracoes()">Fechar</button>
         </div>
@@ -351,6 +352,7 @@
               type="text"
               id="buscaDivida"
               placeholder="Buscar"
+              aria-label="Buscar dívidas"
               oninput="buscarComDebounce()"
             />
           </div>
@@ -372,15 +374,17 @@
           <button
             type="button"
             class="filtro-divida ativo"
+            aria-pressed="true"
             onclick="filtrarDividas('todas', this)"
           >
-            <span>Todas</span>
+            <span>Ativas</span>
             <span class="filtro-contador" id="count-todas">0</span>
           </button>
 
           <button
             type="button"
             class="filtro-divida"
+            aria-pressed="false"
             onclick="filtrarDividas('vencidas', this)"
           >
             <i data-lucide="alert-circle" class="icon icon-sm"></i>
@@ -391,6 +395,7 @@
           <button
             type="button"
             class="filtro-divida"
+            aria-pressed="false"
             onclick="filtrarDividas('proximas', this)"
           >
             <i data-lucide="clock" class="icon icon-sm"></i>
@@ -401,6 +406,7 @@
           <button
             type="button"
             class="filtro-divida"
+            aria-pressed="false"
             onclick="filtrarDividas('quitadas', this)"
           >
             <i data-lucide="check-circle" class="icon icon-sm"></i>
@@ -416,7 +422,7 @@
         <div class="header">
           <h1>
             <i data-lucide="plus-circle" class="icon"></i>
-            Nova Dívida
+            <span id="tituloFormDivida">Nova Dívida</span>
           </h1>
           <button class="btn-outline btn-sm" type="button" aria-label="Voltar para o dashboard" title="Voltar para o dashboard" onclick="voltarParaDashboard()">
             <i data-lucide="arrow-left" class="icon icon-sm"></i>
@@ -454,9 +460,11 @@
             type="number"
             id="valorTotal"
             step="0.01"
+            min="0.01"
+            inputmode="decimal"
             oninput="calcularValorParcela()"
           />
-          <span class="form-erro-texto">Informe um valor maior que zero.</span>
+          <span class="form-erro-texto" id="erroValorTotal">Informe um valor maior que zero.</span>
         </div>
         <div class="form-group checkbox-group">
           <input
@@ -490,7 +498,7 @@
         <div class="form-group">
           <label for="observacaoDivida">Observações</label><textarea id="observacaoDivida"></textarea>
         </div>
-        <div class="form-group">
+        <div class="form-group" id="grupoStatus">
           <label for="statusDivida">Status</label
           ><select id="statusDivida">
             <option value="pendente">Pendente</option>
@@ -498,7 +506,7 @@
           </select>
         </div>
         <button class="btn" id="btnSalvarDivida" onclick="adicionarDivida()">
-          <span class="btn-spinner"></span> Salvar
+          <span class="btn-spinner"></span> <span id="btnSalvarDividaLabel">Salvar</span>
         </button>
       </div>
 
@@ -791,7 +799,7 @@
         <!-- IA CHAT -->
         <div class="assistente-painel" id="painel-chat" role="tabpanel" aria-labelledby="tab-chat">
           <div class="assistente-secao" style="margin-bottom: 8px">
-            <h3><i data-lucide="sparkles" class="icon icon-sm"></i> Consultoria com IA (Groq)</h3>
+            <h3><i data-lucide="sparkles" class="icon icon-sm"></i> Consultoria com IA</h3>
             <p style="font-size: 13px; color: var(--text-secondary); margin-bottom: 12px; line-height: 1.45">
               Converse com a inteligência artificial para receber conselhos e estratégias com base nas suas dívidas cadastradas.
             </p>
@@ -803,7 +811,7 @@
               <button class="chip" type="button" onclick="window.enviarPerguntaChip('Como montar minha reserva de emergência?')">Criar reserva?</button>
             </div>
 
-            <div class="assistente-chat" id="chatMensagens" style="min-height: 260px; max-height: 380px; overflow-y: auto; padding: 10px 2px; display: flex; flex-direction: column; gap: 10px">
+            <div class="assistente-chat" id="chatMensagens" role="log" aria-live="polite" aria-label="Conversa com o assistente" style="min-height: 160px; max-height: 380px; overflow-y: auto; padding: 10px 2px; display: flex; flex-direction: column; gap: 10px">
               <div class="chat-mensagem assistente">
                 <div class="chat-avatar"><i data-lucide="bot" class="icon icon-sm"></i></div>
                 <div class="chat-balao">
@@ -812,8 +820,8 @@
               </div>
             </div>
 
-            <form class="chat-input-row" id="formChat" onsubmit="event.preventDefault(); window.enviarMensagemChat();" style="position: static; margin-top: 12px">
-              <input type="text" id="chatInput" placeholder="Pergunte algo sobre suas finanças..." autocomplete="off" />
+            <form class="chat-input-row" id="formChat" onsubmit="event.preventDefault(); window.enviarMensagemChat();" style="position: sticky; bottom: calc(var(--nav-h, 64px) + 8px); background: var(--bg-card); padding-top: 8px; margin-top: 12px; z-index: 5">
+              <input type="text" id="chatInput" placeholder="Pergunte algo sobre suas finanças..." aria-label="Mensagem para o assistente" autocomplete="off" />
               <button type="submit" id="btnEnviarChat" aria-label="Enviar mensagem">
                 <i data-lucide="send" class="icon icon-sm"></i>
               </button>

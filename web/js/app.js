@@ -142,17 +142,58 @@
         window.addEventListener("offline", atualizarStatusConexao);
         atualizarStatusConexao();
 
+        // achado 14: foco, trap de Tab, Esc e devolucao de foco no modal de Configuracoes
+        let _focoAnteriorModal = null;
+        function _modalKeydown(e) {
+          const modal = document.getElementById("modalConfiguracoes");
+          if (!modal || modal.style.display === "none") return;
+          if (e.key === "Escape") {
+            e.preventDefault();
+            window.fecharConfiguracoes();
+            return;
+          }
+          if (e.key === "Tab") {
+            const foco = modal.querySelectorAll(
+              'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+            );
+            const visiveis = Array.from(foco).filter((el) => el.offsetParent !== null);
+            if (!visiveis.length) return;
+            const primeiro = visiveis[0];
+            const ultimo = visiveis[visiveis.length - 1];
+            if (e.shiftKey && document.activeElement === primeiro) {
+              e.preventDefault();
+              ultimo.focus();
+            } else if (!e.shiftKey && document.activeElement === ultimo) {
+              e.preventDefault();
+              primeiro.focus();
+            }
+          }
+        }
+
         window.abrirConfiguracoes = () => {
           const modal = document.getElementById("modalConfiguracoes");
           if (!modal) return;
+          _focoAnteriorModal = document.activeElement;
           modal.style.display = "flex";
           window.carregarPreferenciaNotificacao?.();
+          // achado 27: no navegador, deixa claro que quem agenda o aviso e o app Android
+          const notaLembrete = document.getElementById("notaLembreteAndroid");
+          if (notaLembrete) {
+            notaLembrete.style.display = window.Android ? "none" : "block";
+          }
           if (window.lucide) lucide.createIcons();
+          document.getElementById("tituloConfiguracoes")?.focus();
+          document.addEventListener("keydown", _modalKeydown);
         };
 
         window.fecharConfiguracoes = () => {
           const modal = document.getElementById("modalConfiguracoes");
           if (modal) modal.style.display = "none";
+          document.removeEventListener("keydown", _modalKeydown);
+          if (_focoAnteriorModal && _focoAnteriorModal.focus) {
+            _focoAnteriorModal.focus();
+            _focoAnteriorModal = null;
+          }
         };
 
         function atualizarStatusSincronizacao(texto, tipo = "") {
@@ -278,11 +319,22 @@
         };
         sincronizarBarrasAndroid();
 
+        // achado 28: a cor da barra do navegador acompanha o tema do app
+        const atualizarThemeColor = () => {
+          const escuro =
+            raiz.classList.contains("dark-mode") ||
+            (!raiz.classList.contains("light-mode") && prefereEscuro);
+          const meta = document.getElementById("metaThemeColor");
+          if (meta) meta.setAttribute("content", escuro ? "#0F141A" : "#F6F7F9");
+        };
+        atualizarThemeColor();
+
         window.alternarTema = () => {
           const escuro = raiz.classList.toggle("dark-mode");
           raiz.classList.toggle("light-mode", !escuro);
           localStorage.setItem("tema", escuro ? "dark" : "light");
           sincronizarBarrasAndroid();
+          atualizarThemeColor();
           if (document.getElementById("relatoriosScreen").classList.contains("active"))
             aplicarFiltroPeriodo();
           if (window.lucide) lucide.createIcons();
@@ -936,6 +988,17 @@
 
         // Navegação
         window.navegar = (t) => {
+          // achado 29: sair do formulario com mudancas nao salvas pede confirmacao,
+          // inclusive pela barra inferior (que chama navegar direto)
+          const telaAtiva = document.querySelector(".screen.active")?.id;
+          if (
+            telaAtiva === "adicionarScreen" &&
+            formularioModificado &&
+            t !== "adicionar"
+          ) {
+            if (!confirm("Sair sem salvar?")) return;
+            formularioModificado = false;
+          }
           [
             "mainScreen",
             "dividasScreen",
@@ -979,11 +1042,11 @@
             document.querySelector('.nav-item[data-tela="assistente"]')?.setAttribute("aria-current", "page");
             if (typeof iniciarAssistente === "function") iniciarAssistente();
           }
+          window.scrollTo(0, 0);
         };
 
         window.voltarParaDashboard = () => {
-          if (formularioModificado && !confirm("Sair sem salvar?")) return;
-          formularioModificado = false;
+          // a checagem "sair sem salvar?" acontece dentro de navegar (achado 29)
           window.navegar("dashboard");
         };
 
@@ -1011,8 +1074,19 @@
           ["grupoNome", "grupoValor", "grupoParcelas", "grupoData"].forEach(
             (id) => marcarErro(id, false),
           );
+          // modo "nova divida"
+          document.getElementById("tituloFormDivida").textContent = "Nova Dívida";
+          document.getElementById("grupoStatus").style.display = "";
+          document.getElementById("btnSalvarDividaLabel").textContent = "Salvar";
           formularioModificado = false;
         }
+
+        // achado 29: qualquer digitacao no formulario marca mudanca nao salva
+        document
+          .getElementById("adicionarScreen")
+          ?.addEventListener("input", () => {
+            formularioModificado = true;
+          });
 
         window.toggleParcelamento = () => {
           document.getElementById("parcelamentoFields").style.display =
@@ -1035,7 +1109,22 @@
 
         function marcarErro(idGrupo, comErro) {
           const grupo = document.getElementById(idGrupo);
-          if (grupo) grupo.classList.toggle("com-erro", comErro);
+          if (!grupo) return;
+          grupo.classList.toggle("com-erro", comErro);
+          // achado 19: liga o estado de erro ao campo para leitores de tela
+          const campo = grupo.querySelector("input, select, textarea");
+          const erroTexto = grupo.querySelector(".form-erro-texto");
+          if (!campo) return;
+          if (comErro) {
+            campo.setAttribute("aria-invalid", "true");
+            if (erroTexto) {
+              if (!erroTexto.id) erroTexto.id = idGrupo + "-erro";
+              campo.setAttribute("aria-describedby", erroTexto.id);
+            }
+          } else {
+            campo.removeAttribute("aria-invalid");
+            campo.removeAttribute("aria-describedby");
+          }
         }
 
         window.adicionarDivida = async () => {
@@ -1071,22 +1160,40 @@
             ? parseFloat(document.getElementById("valorParcela").value) ||
               vt / np
             : vt;
-          let ps = [];
-          for (let i = 0; i < (parc ? np : 1); i++) {
-            ps.push({
-              id: Date.now().toString() + "_" + i,
-              numero: i + 1,
-              vencimento: adicionarMeses(dbv, i),
-              valor: vp,
-              status: st === "pago" ? "pago" : "pendente",
-              pagoEm: st === "pago" ? agoraISO() : null,
-            });
-          }
 
           const btn = document.getElementById("btnSalvarDivida");
           const eid = document
             .getElementById("adicionarScreen")
             .getAttribute("data-editing-id");
+
+          // Ao editar, preservar status/pagoEm/id das parcelas existentes
+          // pelo numero; so gerar parcela nova quando o numero aumentar.
+          const dividaEmEdicao = eid
+            ? dividas.find((d) => d.id === eid)
+            : null;
+          const parcelasAntigas = dividaEmEdicao?.parcelas || [];
+
+          let ps = [];
+          for (let i = 0; i < (parc ? np : 1); i++) {
+            const numero = i + 1;
+            const antiga = parcelasAntigas.find((p) => p.numero === numero);
+            if (antiga) {
+              ps.push({
+                ...antiga,
+                vencimento: adicionarMeses(dbv, i),
+                valor: vp,
+              });
+            } else {
+              ps.push({
+                id: Date.now().toString() + "_" + i,
+                numero,
+                vencimento: adicionarMeses(dbv, i),
+                valor: vp,
+                status: !dividaEmEdicao && st === "pago" ? "pago" : "pendente",
+                pagoEm: !dividaEmEdicao && st === "pago" ? agoraISO() : null,
+              });
+            }
+          }
 
           let dividaAtual;
           if (eid) {
@@ -1133,6 +1240,7 @@
         window.editarDivida = (id) => {
           const d = dividas.find((d) => d.id === id);
           if (!d) return;
+          limparForm();
           document.getElementById("nomeDivida").value = d.nome;
           document.getElementById("categoriaDivida").value =
             d.categoria || "outros";
@@ -1148,11 +1256,11 @@
             d.parcelas[0]?.vencimento || hojeStr();
           document.getElementById("observacaoDivida").value =
             d.observacao || "";
-          document.getElementById("statusDivida").value = d.parcelas?.every(
-            (p) => p.status === "pago",
-          )
-            ? "pago"
-            : "pendente";
+          // modo "editar": status e preservado por parcela (achado 01), campo escondido
+          document.getElementById("grupoStatus").style.display = "none";
+          document.getElementById("tituloFormDivida").textContent = "Editar dívida";
+          document.getElementById("btnSalvarDividaLabel").textContent =
+            "Salvar alterações";
           document
             .getElementById("adicionarScreen")
             .setAttribute("data-editing-id", id);
@@ -1164,7 +1272,7 @@
           const dividaRemovida = dividas.find((d) => d.id === id);
           if (!dividaRemovida) return;
 
-          if (!confirm(`Tem certeza que deseja excluir "${dividaRemovida.nome}"?`)) return;
+          // achado 28: sem confirm() nativo; a trava e o "Desfazer" do toast
 
           // remove localmente e re-renderiza imediatamente
           dividas = dividas.filter((d) => d.id !== id);
@@ -1177,7 +1285,7 @@
           const el = document.createElement("div");
           el.className = "toast-undo";
           el.innerHTML = `
-            <span>Divida "<strong>${escapeHtml(dividaRemovida.nome)}</strong>" removida</span>
+            <span>Dívida "<strong>${escapeHtml(dividaRemovida.nome)}</strong>" removida</span>
             <button class="toast-undo-btn">Desfazer</button>
           `;
 
@@ -1217,20 +1325,45 @@
           setTimeout(() => el.remove(), 3000);
         }
 
+        // Toast com acao "Desfazer" reutilizavel (achados 03 e 28)
+        function mostrarToastDesfazer(mensagemHtml, aoDesfazer, ms = 5000) {
+          const container = document.querySelector(".toast-container");
+          if (!container) return;
+          const el = document.createElement("div");
+          el.className = "toast-undo";
+          el.innerHTML = `<span>${mensagemHtml}</span><button class="toast-undo-btn">Desfazer</button>`;
+          let timer;
+          el.querySelector(".toast-undo-btn").onclick = () => {
+            clearTimeout(timer);
+            el.remove();
+            aoDesfazer();
+          };
+          container.appendChild(el);
+          timer = setTimeout(() => el.remove(), ms);
+        }
+
         window.pagarParcela = async (did, pid) => {
           const d = dividas.find((d) => d.id === did);
           if (d) {
             const p = d.parcelas.find((p) => p.id === pid);
             if (p) {
+              const pagoEmAntigo = p.pagoEm;
               p.status = p.status === "pago" ? "pendente" : "pago";
               p.pagoEm = p.status === "pago" ? agoraISO() : null;
               const ficouPago = p.status === "pago";
               await salvarDividaNoBanco(d);
               atualizarDashboard();
-              mostrarToast(
-                ficouPago ? "Parcela paga!" : "Parcela reaberta",
-                ficouPago ? "sucesso" : "info",
-              );
+              if (ficouPago) {
+                mostrarToast("Parcela paga!", "sucesso");
+              } else {
+                // achado 03: reabrir e reversivel e restaura a data original
+                mostrarToastDesfazer("Parcela reaberta", async () => {
+                  p.status = "pago";
+                  p.pagoEm = pagoEmAntigo;
+                  await salvarDividaNoBanco(d);
+                  atualizarDashboard();
+                });
+              }
             }
           }
         };
@@ -1256,6 +1389,25 @@
 
           return `<span class="categoria-badge ${cl}"><i data-lucide="${icon}" class="icon icon-sm"></i>${nm}</span>`;
         }
+
+        // achado 23: rotulo legivel da categoria (evita mostrar o codigo cru "educacao")
+        window.rotuloCategoria = (c) => {
+          const m = {
+            cartao: "Cartão",
+            emprestimo: "Empréstimo",
+            boleto: "Boleto",
+            assinatura: "Assinatura",
+            educacao: "Educação",
+            saude: "Saúde",
+            moradia: "Moradia",
+            transporte: "Transporte",
+            alimentacao: "Alimentação",
+            lazer: "Lazer",
+            imposto: "Impostos",
+            outros: "Outros",
+          };
+          return m[c] || c || "";
+        };
 
         function ordenarDividas(l) {
           const o = document.getElementById("ordenacaoSelect")?.value || "nome";
@@ -1320,12 +1472,21 @@
         window.filtrarDividas = (tipo, btn) => {
           filtroDividasAtual = tipo;
 
-          document
-            .querySelectorAll(".filtro-divida")
-            .forEach((b) => b.classList.remove("ativo"));
+          document.querySelectorAll(".filtro-divida").forEach((b) => {
+            b.classList.remove("ativo");
+            b.setAttribute("aria-pressed", "false");
+          });
 
           btn.classList.add("ativo");
+          btn.setAttribute("aria-pressed", "true");
 
+          atualizarDashboard();
+        };
+
+        // achado 06: limpa a busca a partir do estado vazio
+        window.limparBusca = () => {
+          const campo = document.getElementById("buscaDivida");
+          if (campo) campo.value = "";
           atualizarDashboard();
         };
 
@@ -1513,7 +1674,7 @@
         </div>
 
         <div class="prox-progresso-texto">
-            <span>${percentual}% quitado</span>
+            <span>${percentual}% do valor pago</span>
             <span>falta ${formatarMoeda(tp)}</span>
         </div>`
               : "";
@@ -1619,16 +1780,45 @@
           }
 
           if (!ord.length) {
+            // achado 06: tres estados distintos — conta nova, busca vazia, filtro vazio
+            let icone = "inbox";
+            let titulo = "Nenhuma dívida aqui";
+            let texto = "";
+            let acao = "";
+            if (dividas.length === 0) {
+              titulo = "Nenhuma dívida aqui";
+              texto = "Adicione sua primeira dívida para começar a controlar suas finanças.";
+              acao = `<button class="btn" onclick="abrirNovaDivida()"><i data-lucide="plus" class="icon icon-sm"></i> Adicionar dívida</button>`;
+            } else if (termo) {
+              icone = "search";
+              titulo = "Nada encontrado";
+              texto = `Nenhuma dívida corresponde a "${escapeHtml(termo)}".`;
+              acao = `<button class="btn btn-outline" onclick="limparBusca()"><i data-lucide="x" class="icon icon-sm"></i> Limpar busca</button>`;
+            } else if (filtroDividasAtual === "vencidas") {
+              icone = "check-circle";
+              titulo = "Nenhuma conta vencida";
+              texto = "Tudo em dia por aqui.";
+            } else if (filtroDividasAtual === "proximas") {
+              icone = "calendar-check";
+              titulo = "Nada vencendo agora";
+              texto = "Nenhuma conta vence nos próximos 7 dias.";
+            } else if (filtroDividasAtual === "quitadas") {
+              icone = "flag";
+              titulo = "Nenhuma dívida quitada ainda";
+              texto = "As dívidas totalmente pagas aparecem aqui.";
+            } else {
+              icone = "party-popper";
+              titulo = "Nenhuma dívida ativa";
+              texto = "Tudo quitado! Veja as pagas no filtro Quitadas.";
+            }
             c.innerHTML = `
               <div class="estado-vazio">
                 <div class="estado-vazio-icone">
-                  <i data-lucide="inbox" style="width:36px;height:36px;stroke:currentColor;fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round"></i>
+                  <i data-lucide="${icone}" style="width:36px;height:36px;stroke:currentColor;fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round"></i>
                 </div>
-                <h3>Nenhuma dívida aqui</h3>
-                <p>Adicione sua primeira dívida para começar a controlar suas finanças.</p>
-                <button class="btn" onclick="abrirNovaDivida()">
-                  <i data-lucide="plus" class="icon icon-sm"></i> Adicionar dívida
-                </button>
+                <h3>${titulo}</h3>
+                <p>${texto}</p>
+                ${acao}
               </div>`;
             if (window.lucide) lucide.createIcons();
             return;
@@ -1692,6 +1882,7 @@
 
                             <div class="divida-valor-col">
                                 <span class="valor-destaque">${formatarMoeda(d.valorTotal || 0)}</span>
+                                <span class="valor-rotulo">total</span>
                                 <div class="divida-status-linha">
                                   ${statusVencimento}
                                   <span class="seta-expandir"><i data-lucide="chevron-down" class="icon icon-sm"></i></span>
@@ -1716,7 +1907,7 @@
                                     </span>
                                     <strong class="parcela-valor">${formatarMoeda(p.valor || 0)}</strong>
                                 </div>
-                                <button class="parcela-acao btn-sm ${p.status === "pendente" ? "btn-success" : "btn-warning"}"
+                                <button class="parcela-acao btn-sm ${p.status === "pendente" ? "btn-success" : "parcela-reabrir"}"
     aria-label="${p.status === "pendente" ? "Pagar" : "Reabrir"} parcela ${escapeHtml(String(p.numero))}"
     onclick="event.stopPropagation();window.pagarParcela(${jsArg(d.id)},${jsArg(p.id)})"
     >
@@ -1787,13 +1978,17 @@
                     </span>
 
                     <span class="vencimento-data">
-                        ${formatarData(v.vencimento)}
+                        ${formatarData(v.vencimento)} · parcela
                     </span>
                 </div>
 
                 <span class="vencimento-valor">
                     ${formatarMoeda(v.valor)}
                 </span>
+
+                <button class="vencimento-pagar" type="button" aria-label="Marcar ${escapeHtml(v.nome)} como paga" onclick="window.pagarParcela(${jsArg(v.dividaId)},${jsArg(v.parcelaId)})">
+                    <i data-lucide="check-circle" class="icon icon-sm"></i>
+                </button>
 
             </div>
          `,
@@ -1960,23 +2155,25 @@
           document.getElementById("barraQuitacao").style.width =
             percentual + "%";
 
+          // achado 04: deixa claro que esta base e por numero de parcelas
           document.getElementById("textoQuitacao").textContent =
-            percentual + "% quitado";
+            `${parcelasPagas} de ${totalParcelas} parcelas pagas`;
 
           document.getElementById("relParcelas").textContent = totalParcelas;
 
           document.getElementById("relPercentual").textContent =
             percentual + "%";
 
+          // achado 26: o foco precisa dizer qual divida priorizar
           const proximoFoco = d
-            .flatMap((x) => x.parcelas)
+            .flatMap((x) => (x.parcelas || []).map((p) => ({ ...p, nomeDivida: x.nome })))
             .filter((p) => p.status === "pendente")
             .sort((a, b) => new Date(a.vencimento) - new Date(b.vencimento))[0];
           const foco = document.getElementById("relatorioFoco");
           if (foco) {
             foco.innerHTML = proximoFoco
               ? `<div class="relatorio-foco-icone"><i data-lucide="target" class="icon"></i></div>
-                 <div class="relatorio-foco-conteudo"><span class="eyebrow">PRÓXIMO FOCO</span><strong>Priorize ${formatarMoeda(proximoFoco.valor || 0)}</strong><span>Vencimento em ${formatarData(proximoFoco.vencimento)}</span></div>`
+                 <div class="relatorio-foco-conteudo"><span class="eyebrow">PRÓXIMO FOCO</span><strong>Priorize ${escapeHtml(proximoFoco.nomeDivida || "")}: ${formatarMoeda(proximoFoco.valor || 0)}</strong><span>Vencimento em ${formatarData(proximoFoco.vencimento)}</span></div>`
               : `<div class="relatorio-foco-icone"><i data-lucide="circle-check" class="icon"></i></div><div class="relatorio-foco-conteudo"><span class="eyebrow">TUDO EM DIA</span><strong>Nenhuma parcela pendente neste filtro</strong><span>Continue acompanhando seu progresso.</span></div>`;
             if (window.lucide) lucide.createIcons();
           }
@@ -2044,6 +2241,16 @@
             formatarMoeda(pnd);
 
           document.getElementById("relPago").textContent = formatarMoeda(pag);
+
+          // achado 20: resumo acessivel do grafico
+          const canvasDiv = document.getElementById("graficoDividas");
+          if (canvasDiv) {
+            canvasDiv.setAttribute("role", "img");
+            canvasDiv.setAttribute(
+              "aria-label",
+              `Gráfico de dívidas: ${formatarMoeda(pnd)} pendentes e ${formatarMoeda(pag)} pagas.`,
+            );
+          }
 
           if (window.aplicarTemaGraficos) window.aplicarTemaGraficos();
 
@@ -2127,6 +2334,16 @@
 
           if (!categoriasComValor.length) return;
 
+          // achado 20: resumo acessivel do grafico de categorias
+          const canvasCat = document.getElementById("graficoCategorias");
+          if (canvasCat) {
+            const resumoCat = categoriasComValor
+              .map((cat) => `${nomesPorCategoria[cat] || cat}: ${formatarMoeda(totaisPorCategoria[cat])}`)
+              .join("; ");
+            canvasCat.setAttribute("role", "img");
+            canvasCat.setAttribute("aria-label", `Dívidas por categoria. ${resumoCat}.`);
+          }
+
           if (window.aplicarTemaGraficos) window.aplicarTemaGraficos();
 
           aplicarTemaGraficos();
@@ -2172,7 +2389,7 @@
             window.fecharModalRecuperacao();
           } catch (er) {
             mostrarToast(
-              "Erro ao enviar email. Verifique se o email esta correto.",
+              "Erro ao enviar email. Verifique se o email está correto.",
               "erro"
             );
           }

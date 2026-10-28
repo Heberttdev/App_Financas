@@ -87,8 +87,46 @@
     return (orcamento.rendaMensal || 0) + extras;
   }
 
+  // achado 02: normaliza nome para comparar (sem acento, minusculo, sem espaco extra)
+  function normalizarNome(s) {
+    return String(s || "")
+      .trim()
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[̀-ͯ]/g, "");
+  }
+
+  // dividas ativas = tem ao menos uma parcela pendente
+  function dividasAtivas() {
+    const _d = window.getDividas ? window.getDividas() : [];
+    return _d.filter((d) =>
+      (d.parcelas || []).some((p) => p.status === "pendente"),
+    );
+  }
+
+  // despesa fixa que ja esta cadastrada como divida ativa (por vinculo ou por nome)
+  function dividaVinculadaDespesa(despesa) {
+    if (!despesa) return null;
+    const ativas = dividasAtivas();
+    if (despesa.dividaId) {
+      const porId = ativas.find((d) => d.id === despesa.dividaId);
+      if (porId) return porId;
+    }
+    const alvo = normalizarNome(despesa.nome);
+    if (!alvo) return null;
+    return ativas.find((d) => normalizarNome(d.nome) === alvo) || null;
+  }
+
+  function despesaDuplicada(despesa) {
+    return !!dividaVinculadaDespesa(despesa);
+  }
+
   function totalDespesasFixas() {
-    return (orcamento.despesas || []).reduce((s, d) => s + (d.valor || 0), 0);
+    // exclui despesas que ja contam como divida ativa, para nao somar duas vezes
+    return (orcamento.despesas || []).reduce(
+      (s, d) => s + (despesaDuplicada(d) ? 0 : d.valor || 0),
+      0,
+    );
   }
 
   function totalDividasPendentes() {
@@ -194,14 +232,14 @@
         <div>
           <div class="indicador-label">Pode gastar hoje</div>
           <div class="indicador-valor">${formatarMoeda(Math.max(0, hoje))}</div>
-          <div class="indicador-sub">sem comprometer o orcamento</div>
+          <div class="indicador-sub">sem comprometer o orçamento</div>
         </div>
       </div>
 
       <div class="indicador-card">
-        <div class="indicador-label">Saldo livre/mes</div>
+        <div class="indicador-label">Saldo livre/mês</div>
         <div class="indicador-valor" style="color:${saldo >= 0 ? "var(--success)" : "var(--danger)"}">${formatarMoeda(saldo)}</div>
-        <div class="indicador-sub">apos despesas e dividas</div>
+        <div class="indicador-sub">após despesas e dívidas</div>
       </div>
 
       <div class="indicador-card">
@@ -217,7 +255,7 @@
       </div>
 
       <div class="indicador-card">
-        <div class="indicador-label">Parcelas/mes</div>
+        <div class="indicador-label">Parcelas/mês</div>
         <div class="indicador-valor" style="color:var(--danger)">${formatarMoeda(parc)}</div>
         <div class="indicador-sub">${totalParcelas()} pendentes no total</div>
       </div>
@@ -225,7 +263,7 @@
       <div class="indicador-card">
         <div class="indicador-label">Meta economia</div>
         <div class="indicador-valor" style="color:var(--primary)">${formatarMoeda(orcamento.metaEconomia || 0)}</div>
-        <div class="indicador-sub">por mes</div>
+        <div class="indicador-sub">por mês</div>
       </div>
     `;
     if (window.lucide) lucide.createIcons();
@@ -319,7 +357,7 @@
         tipo: "info",
         icone: "info",
         titulo: "Configure sua renda",
-        texto: "Acesse a aba Orcamento e informe sua renda mensal para receber insights personalizados.",
+        texto: "Acesse a aba Orçamento e informe sua renda mensal para receber insights personalizados.",
       });
     } else {
       if (pct > 80) {
@@ -327,13 +365,13 @@
           tipo: "alerta",
           icone: "alert-triangle",
           titulo: "Alto comprometimento de renda",
-          texto: `${Math.round(pct)}% da sua renda ja esta comprometida com despesas fixas e parcelas. Risco de orcamento negativo.`,
+          texto: `${Math.round(pct)}% da sua renda já está comprometida com despesas fixas e parcelas. Risco de orçamento negativo.`,
         });
       } else if (pct > 60) {
         insights.push({
           tipo: "info",
           icone: "info",
-          titulo: "Atencao ao comprometimento",
+          titulo: "Atenção ao comprometimento",
           texto: `${Math.round(pct)}% da sua renda comprometida. Tente manter abaixo de 60% para ter folga financeira.`,
         });
       }
@@ -342,15 +380,15 @@
         insights.push({
           tipo: "alerta",
           icone: "alert-circle",
-          titulo: "Orcamento negativo",
-          texto: `Suas despesas e parcelas superam sua renda em ${formatarMoeda(Math.abs(saldo))}. E necessario cortar gastos imediatamente.`,
+          titulo: "Orçamento negativo",
+          texto: `Suas despesas e parcelas superam sua renda em ${formatarMoeda(Math.abs(saldo))}. É necessário cortar gastos imediatamente.`,
         });
       } else if (saldo < renda * 0.1) {
         insights.push({
           tipo: "alerta",
           icone: "alert-triangle",
           titulo: "Margem muito pequena",
-          texto: `Voce tem apenas ${formatarMoeda(saldo)} de saldo livre. Qualquer gasto imprevisto pode comprometer o mes.`,
+          texto: `Você tem apenas ${formatarMoeda(saldo)} de saldo livre. Qualquer gasto imprevisto pode comprometer o mês.`,
         });
       }
 
@@ -359,22 +397,22 @@
           insights.push({
             tipo: "meta",
             icone: "trophy",
-            titulo: "Proximo de quitar as dividas",
-            texto: `Mantendo o ritmo atual, voce quita todas as dividas em aproximadamente ${meses} mes(es). Otimo momento para acelerar!`,
+            titulo: "Próximo de quitar as dívidas",
+            texto: `Mantendo o ritmo atual, você quita todas as dívidas em aproximadamente ${meses} mês(es). Ótimo momento para acelerar!`,
           });
         } else if (meses <= 12) {
           insights.push({
             tipo: "dica",
             icone: "trending-up",
-            titulo: `${meses} meses para zerar as dividas`,
-            texto: `Adicionar ${formatarMoeda(parcelaMensalTotal() * 0.2)} a mais nas parcelas pode reduzir esse prazo em ate 20%.`,
+            titulo: `${meses} meses para zerar as dívidas`,
+            texto: `Adicionar ${formatarMoeda(parcelaMensalTotal() * 0.2)} a mais nas parcelas pode reduzir esse prazo em até 20%.`,
           });
         } else {
           insights.push({
             tipo: "info",
             icone: "clock",
             titulo: `Prazo estimado: ${meses} meses`,
-            texto: `Considere usar a estrategia avalanche: pague primeiro a divida com maior juros para economizar no longo prazo.`,
+            texto: `Considere usar a estratégia avalanche: pague primeiro a dívida com maior juros para economizar no longo prazo.`,
           });
         }
       }
@@ -385,7 +423,7 @@
           tipo: "dica",
           icone: "piggy-bank",
           titulo: "Defina uma meta de economia",
-          texto: `Voce tem ${formatarMoeda(saldo)} de saldo livre. Estabelecer uma meta mensal garante progresso consistente.`,
+          texto: `Você tem ${formatarMoeda(saldo)} de saldo livre. Estabelecer uma meta mensal garante progresso consistente.`,
         });
       }
 
@@ -407,8 +445,8 @@
         const top = Object.entries(catContagem).sort((a, b) => b[1] - a[1])[0];
         if (top) {
           const nomes = {
-            cartao: "Cartao de credito",
-            emprestimo: "Emprestimos",
+            cartao: "Cartão de crédito",
+            emprestimo: "Empréstimos",
             boleto: "Boletos",
             assinatura: "Assinaturas",
             outros: "Outros",
@@ -416,7 +454,7 @@
           insights.push({
             tipo: "info",
             icone: "pie-chart",
-            titulo: `${nomes[top[0]] || top[0]} e a maior categoria`,
+            titulo: `${nomes[top[0]] || top[0]} é a maior categoria`,
             texto: `${formatarMoeda(top[1])} concentrados nessa categoria. Considere renegociar ou eliminar primeiro.`,
           });
         }
@@ -458,6 +496,17 @@
     if (graficoProjecaoInstance) graficoProjecaoInstance.destroy();
 
     const dados = projecao(6);
+    // achado 20: resumo acessivel do grafico de projecao
+    if (dados.length) {
+      const resumo = dados
+        .map((d) => `${d.label}: ${formatarMoeda(d.valor)}`)
+        .join("; ");
+      canvas.setAttribute("role", "img");
+      canvas.setAttribute(
+        "aria-label",
+        `Projeção de saldo acumulado para os próximos ${dados.length} meses. ${resumo}.`,
+      );
+    }
     if (window.aplicarTemaGraficos) window.aplicarTemaGraficos();
     graficoProjecaoInstance = new Chart(canvas, {
       type: "line",
@@ -555,11 +604,11 @@
       el.innerHTML = `
         <div style="text-align:center;padding:24px 16px;color:var(--text-secondary)">
           <i data-lucide="calculator" style="width:40px;height:40px;stroke:currentColor;fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;margin-bottom:8px;opacity:.4"></i>
-          <div style="font-weight:700;font-size:15px;color:var(--text);margin-bottom:4px">Simulacao indisponivel</div>
+          <div style="font-weight:700;font-size:15px;color:var(--text);margin-bottom:4px">Simulação indisponível</div>
           <div style="font-size:13px;line-height:1.5">
-            Para ver a simulacao, preencha:<br>
-            <strong>1.</strong> Sua renda mensal na aba Orcamento<br>
-            <strong>2.</strong> Pelo menos uma divida ativa
+            Para ver a simulação, preencha:<br>
+            <strong>1.</strong> Sua renda mensal na aba Orçamento<br>
+            <strong>2.</strong> Pelo menos uma dívida ativa
           </div>
         </div>`;
       if (window.lucide) lucide.createIcons();
@@ -570,10 +619,28 @@
       el.innerHTML = `
         <div style="text-align:center;padding:20px;color:var(--success)">
           <i data-lucide="party-popper" style="width:40px;height:40px;stroke:currentColor;fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;margin-bottom:8px"></i>
-          <div style="font-weight:700;font-size:16px">Sem dividas pendentes!</div>
+          <div style="font-weight:700;font-size:16px">Sem dívidas pendentes!</div>
           <div style="font-size:13px;color:var(--text-secondary);margin-top:4px">Continue assim!</div>
         </div>`;
       if (window.lucide) lucide.createIcons();
+      return;
+    }
+
+    // achado 12: saldo mensal negativo torna o prazo impossivel de estimar;
+    // explicar e apontar o caminho em vez de mostrar "—"
+    if (disp <= 0) {
+      el.innerHTML = `
+        <div style="text-align:center;padding:24px 16px;color:var(--text-secondary)">
+          <i data-lucide="alert-triangle" style="width:40px;height:40px;stroke:var(--warning);fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;margin-bottom:8px"></i>
+          <div style="font-weight:700;font-size:15px;color:var(--text);margin-bottom:4px">Não dá para estimar o prazo</div>
+          <div style="font-size:13px;line-height:1.5;margin-bottom:12px">Seu saldo do mês está negativo (${formatarMoeda(disp)}). Reveja o Orçamento para liberar valor e quitar as dívidas.</div>
+          <button class="btn btn-sm" type="button" onclick="irParaOrcamento()">Revisar Orçamento</button>
+        </div>`;
+      if (window.lucide) lucide.createIcons();
+      renderRanking();
+      renderEstrategia();
+      renderSimulacaoExtra(0);
+      renderPrevisaoMes();
       return;
     }
 
@@ -588,7 +655,7 @@
           <div class="indicador-valor" style="font-size:16px;color:var(--danger)">${formatarMoeda(total)}</div>
         </div>
         <div class="indicador-card">
-          <div class="indicador-label">Disponivel/mes</div>
+          <div class="indicador-label">Disponível/mês</div>
           <div class="indicador-valor" style="font-size:16px;color:${disp >= 0 ? "var(--success)" : "var(--danger)"}">${formatarMoeda(disp)}</div>
         </div>
         <div class="indicador-card ${meses && meses <= 6 ? "positivo" : meses && meses <= 18 ? "" : "alerta"}">
@@ -596,7 +663,7 @@
           <div class="indicador-valor" style="font-size:16px">${meses ? meses + " meses" : "—"}</div>
         </div>
         <div class="indicador-card">
-          <div class="indicador-label">Previsao quitacao</div>
+          <div class="indicador-label">Previsão quitação</div>
           <div class="indicador-valor" style="font-size:13px;font-weight:700">${meses ? dataQuitacao.toLocaleDateString("pt-BR", { month: "short", year: "numeric" }) : "—"}</div>
         </div>
       </div>`;
@@ -647,13 +714,13 @@
     if (!el) return;
     const ord = dividasOrdenadas(estrategiaAtual);
     if (!ord.length) {
-      el.innerHTML = `<p style="color:var(--text-secondary);font-size:13px">Nenhuma divida pendente.</p>`;
+      el.innerHTML = `<p style="color:var(--text-secondary);font-size:13px">Nenhuma dívida pendente.</p>`;
       return;
     }
 
     const descricao = estrategiaAtual === "avalanche"
-      ? "Pague primeiro as dividas de maior valor — reduz o montante total mais rapido."
-      : "Pague primeiro as dividas menores — elimina contas rapido e da motivacao.";
+      ? "Pague primeiro as dívidas de maior valor — reduz o montante total mais rápido."
+      : "Pague primeiro as dívidas menores — elimina contas rápido e dá motivação.";
 
     el.innerHTML = `
       <div class="insight-card tipo-info" style="margin-bottom:12px">
@@ -668,7 +735,7 @@
             <div style="width:28px;height:28px;border-radius:50%;background:var(--gradient);color:white;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex-shrink:0">${i + 1}</div>
             <div style="flex:1">
               <div style="font-weight:700">${escapeHtml(d.nome)}</div>
-              ${proxima ? `<div style="font-size:12px;color:var(--text-secondary)">Proxima: ${new Date(proxima.vencimento + "T00:00:00").toLocaleDateString("pt-BR")}</div>` : ""}
+              ${proxima ? `<div style="font-size:12px;color:var(--text-secondary)">Próxima: ${new Date(proxima.vencimento + "T00:00:00").toLocaleDateString("pt-BR")}</div>` : ""}
             </div>
             <div style="font-weight:700;color:var(--danger)">${formatarMoeda(pendVal)}</div>
           </div>`;
@@ -709,12 +776,12 @@
           <strong>${mesesSem ? mesesSem + " meses" : "—"}</strong>
         </div>
         <div style="display:flex;justify-content:space-between;margin-bottom:12px;font-size:14px">
-          <span style="color:var(--text-secondary)">Com + ${formatarMoeda(extra)}/mes</span>
+          <span style="color:var(--text-secondary)">Com + ${formatarMoeda(extra)}/mês</span>
           <strong style="color:var(--success)">${mesesCom ? mesesCom + " meses" : "—"}</strong>
         </div>
         ${ganho > 0 ? `
           <div style="background:var(--success-soft);border-radius:10px;padding:12px;text-align:center">
-            <div style="color:var(--success);font-weight:700;font-size:15px">-${ganho} meses de divida</div>
+            <div style="color:var(--success);font-weight:700;font-size:15px">-${ganho} meses de dívida</div>
             ${economia > 0 ? `<div style="color:var(--text-secondary);font-size:12px;margin-top:4px">Economia de ~${formatarMoeda(economia)} em juros e tempo</div>` : ""}
           </div>` : `<div style="color:var(--text-secondary);font-size:13px;text-align:center">Aumente o valor para ver impacto significativo.</div>`}
       </div>`;
@@ -733,7 +800,7 @@
     el.innerHTML = `
       <div style="margin-bottom:12px">
         <div class="progresso-label">
-          <span>Consumido este mes</span>
+          <span>Consumido este mês</span>
           <span style="color:${percentual > 80 || negativo ? "var(--danger)" : "var(--text-secondary)"}">${percentual}%</span>
         </div>
         <div class="progresso-barra">
@@ -743,7 +810,7 @@
       ${negativo ? `
         <div style="background:var(--danger-soft);border:1px solid color-mix(in srgb, var(--danger) 25%, transparent);border-radius:10px;padding:10px 12px;margin-bottom:10px;display:flex;align-items:center;gap:8px;font-size:13px;color:var(--danger);font-weight:600">
           <i data-lucide="alert-triangle" style="width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"></i>
-          Saldo negativo no mes! Reveja suas despesas.
+          Saldo negativo no mês! Reveja suas despesas.
         </div>` : ""}
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
         <div class="indicador-card">
@@ -825,21 +892,23 @@
     lista.innerHTML = `
       <div class="card" style="padding:12px 16px">
         ${desp
-          .map(
-            (d, i) => `
+          .map((d, i) => {
+            const dup = despesaDuplicada(d);
+            return `
           <div class="despesa-item">
             <div>
               <div class="despesa-nome">${escapeHtml(d.nome)}</div>
-              <div class="despesa-cat">${escapeHtml(d.categoria || "")}</div>
+              <div class="despesa-cat">${escapeHtml(window.rotuloCategoria ? window.rotuloCategoria(d.categoria) : d.categoria || "")}</div>
+              ${dup ? `<div class="despesa-aviso" style="color:var(--warning,#e3a54e);font-size:12px;margin-top:4px">Já cadastrada como dívida — não contada em dobro.</div>` : ""}
             </div>
             <div style="display:flex;align-items:center;gap:10px">
-              <span class="despesa-valor">${formatarMoeda(d.valor)}</span>
+              <span class="despesa-valor"${dup ? ' style="text-decoration:line-through;opacity:.6"' : ""}>${formatarMoeda(d.valor)}</span>
               <button onclick="removerDespesa(${i})" style="background:none;border:none;color:var(--danger);cursor:pointer;padding:4px;display:flex">
                 <i data-lucide="x" style="width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"></i>
               </button>
             </div>
-          </div>`
-          )
+          </div>`;
+          })
           .join("")}
       </div>`;
     if (window.lucide) lucide.createIcons();
@@ -921,6 +990,12 @@
   };
 
   // ─── Tabs ──────────────────────────────────────────────────────────────────
+
+  // achado 12: atalho para a aba Orcamento a partir da Simulacao
+  window.irParaOrcamento = () => {
+    const btn = document.getElementById("tab-orcamento");
+    if (btn) window.abrirTabAssistente("orcamento", btn);
+  };
 
   window.abrirTabAssistente = (tab, btn) => {
     document.querySelectorAll(".assistente-tab").forEach((b) => {
