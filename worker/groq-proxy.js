@@ -175,7 +175,10 @@ async function chamarGroq(apiKey, modelo, messages) {
       model: modelo,
       messages: messages,
       temperature: 0.65,
-      max_tokens: 512,
+      // gpt-oss e um modelo de reasoning: os tokens de raciocinio entram no
+      // orcamento. 512 cortava a resposta final. Margem maior + reasoning baixo.
+      max_tokens: 2048,
+      reasoning_effort: "low",
     }),
   });
 }
