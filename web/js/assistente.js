@@ -29,6 +29,7 @@
     debounceSalvarTimer = setTimeout(() => {
       persistirOrcamento();
       renderTudo();
+      renderOrcamentoUI();
       mostrarToastSalvo();
     }, 800);
   }
@@ -66,6 +67,7 @@
     preencherFormulario();
     renderizarDespesas();
     renderizarRendasExtras();
+    renderOrcamentoUI();
   }
 
   async function persistirOrcamento() {
@@ -114,7 +116,16 @@
     }
     const alvo = normalizarNome(despesa.nome);
     if (!alvo) return null;
-    return ativas.find((d) => normalizarNome(d.nome) === alvo) || null;
+    // 1) nome igual; 2) um nome contido no outro ("Escola" em "Escola de Anthony")
+    const exato = ativas.find((d) => normalizarNome(d.nome) === alvo);
+    if (exato) return exato;
+    if (alvo.length < 4) return null;
+    return (
+      ativas.find((d) => {
+        const n = normalizarNome(d.nome);
+        return n && n.length >= 4 && (n.includes(alvo) || alvo.includes(n));
+      }) || null
+    );
   }
 
   function despesaDuplicada(despesa) {
@@ -176,37 +187,170 @@
     return Math.min(100, ((orcamento.reservaAtual || 0) / orcamento.metaReserva) * 100);
   }
 
-  // meses para quitar todas as dividas com o ritmo atual
-  function mesesParaQuitacao(extraMensal = 0) {
-    const disponivel = Math.max(0, saldoDisponivel()) + extraMensal;
-    const total = totalDividasPendentes();
-    if (disponivel <= 0 || total <= 0) return null;
-    return Math.ceil(total / disponivel);
+  // data de vencimento da ultima parcela pendente = fim real das parcelas
+  function ultimaParcelaPendente() {
+    const divs = window.getDividas ? window.getDividas() : [];
+    let max = null;
+    divs.forEach((d) =>
+      (d.parcelas || []).forEach((p) => {
+        if (p.status !== "pendente" || !p.vencimento) return;
+        const dt = new Date(p.vencimento + "T00:00:00");
+        if (!max || dt > max) max = dt;
+      }),
+    );
+    return max;
   }
 
-  // projecao de saldo para os proximos N meses
+  // soma das parcelas pendentes que vencem em um mes especifico
+  function parcelasDoMes(ano, mes) {
+    const divs = window.getDividas ? window.getDividas() : [];
+    let soma = 0;
+    divs.forEach((d) =>
+      (d.parcelas || []).forEach((p) => {
+        if (p.status !== "pendente" || !p.vencimento) return;
+        const pv = new Date(p.vencimento + "T00:00:00");
+        if (pv.getFullYear() === ano && pv.getMonth() === mes) soma += p.valor || 0;
+      }),
+    );
+    return soma;
+  }
+
+  // sobra real de um mes especifico = renda - despesas fixas - parcelas que vencem nele - meta
+  function sobraDoMes(ano, mes) {
+    return totalRenda() - totalDespesasFixas() - parcelasDoMes(ano, mes) - (orcamento.metaEconomia || 0);
+  }
+
+  // lista dos proximos meses ate a ultima parcela (+ 1 mes de folga)
+  function calendarioProximosMeses() {
+    const hoje = new Date();
+    const fim = ultimaParcelaPendente();
+    const limite = fim
+      ? new Date(fim.getFullYear(), fim.getMonth() + 1, 1)
+      : new Date(hoje.getFullYear(), hoje.getMonth() + 2, 1);
+    const meses = [];
+    const cur = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
+    let guard = 0;
+    while (cur <= limite && guard < 36) {
+      const ano = cur.getFullYear();
+      const mes = cur.getMonth();
+      meses.push({
+        data: new Date(ano, mes, 1),
+        parcelas: parcelasDoMes(ano, mes),
+        sobra: totalRenda() - totalDespesasFixas() - parcelasDoMes(ano, mes),
+      });
+      cur.setMonth(cur.getMonth() + 1);
+      guard++;
+    }
+    return meses;
+  }
+
+  // projecao de quanto da para juntar nos proximos N meses, usando a sobra real de cada mes
   function projecao(meses = 6) {
     const hoje = new Date();
     const resultado = [];
     let saldoAcumulado = orcamento.reservaAtual || 0;
     for (let i = 0; i < meses; i++) {
-      const d = new Date(hoje.getFullYear(), hoje.getMonth() + i + 1, 1);
+      const d = new Date(hoje.getFullYear(), hoje.getMonth() + i, 1);
       const label = d.toLocaleDateString("pt-BR", { month: "short", year: "2-digit" });
-      saldoAcumulado += Math.max(0, saldoDisponivel());
-      resultado.push({ label, valor: saldoAcumulado });
+      const sobra = sobraDoMes(d.getFullYear(), d.getMonth());
+      saldoAcumulado += Math.max(0, sobra);
+      resultado.push({ label, valor: saldoAcumulado, sobra });
     }
     return resultado;
   }
 
-  function previsaoFimMes() {
-    const hoje = new Date();
-    const diaAtual = hoje.getDate();
-    const diasNoMes = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0).getDate();
-    const diasPassados = diaAtual - 1;
-    const gastoDiario = gastoHoje();
-    const gastado = gastoDiario * diasPassados;
-    const restante = saldoAposEconomia() - gastado;
-    return { gastado, restante, percentual: Math.round((gastado / Math.max(1, saldoAposEconomia())) * 100) };
+  // ─── Visao Geral (resumo em frases) ──────────────────────────────────────────
+
+  function nomeMes(d) {
+    return d.toLocaleDateString("pt-BR", { month: "long" });
+  }
+
+  // 1. Sobra do mes, em frase, com barra mostrando de onde vem
+  function renderSobraMes() {
+    const el = document.getElementById("visao-sobra");
+    if (!el) return;
+    const renda = totalRenda();
+    const desp = totalDespesasFixas();
+    const parc = parcelaMensalTotal();
+    const meta = orcamento.metaEconomia || 0;
+    const sobra = renda - desp - parc; // saldo disponivel do mes
+    const livre = sobra - meta;
+    const mes = nomeMes(new Date());
+
+    if (renda <= 0) {
+      el.innerHTML = `
+        <div class="card" style="padding:16px">
+          <div style="font-size:16px;font-weight:700;margin-bottom:4px">Vamos começar pela sua renda</div>
+          <div style="font-size:13px;color:var(--text-secondary)">Informe sua renda mensal na aba Orçamento para ver quanto sobra.</div>
+        </div>`;
+      return;
+    }
+
+    const cor = sobra >= 0 ? "var(--success)" : "var(--danger)";
+    const seg = (v, c) =>
+      v > 0 ? `<div style="width:${(v / renda) * 100}%;background:${c};height:100%"></div>` : "";
+
+    el.innerHTML = `
+      <div class="card" style="padding:16px">
+        <div style="font-size:14px;color:var(--text-secondary)">Em ${mes} ${sobra >= 0 ? "sobram" : "faltam"}</div>
+        <div style="font-size:28px;font-weight:800;color:${cor};line-height:1.1;margin:2px 0 12px">${formatarMoeda(Math.abs(sobra))}</div>
+        <div style="display:flex;height:10px;border-radius:6px;overflow:hidden;background:var(--border-light)">
+          ${seg(parc, "var(--danger)")}
+          ${seg(desp, "var(--warning)")}
+          ${seg(Math.max(0, meta), "var(--primary)")}
+          ${seg(Math.max(0, livre), "var(--success)")}
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:12px;margin-top:10px;font-size:12px;color:var(--text-secondary)">
+          <span><b style="color:var(--text)">${formatarMoeda(renda)}</b> renda</span>
+          ${parc > 0 ? `<span style="color:var(--danger)">− ${formatarMoeda(parc)} parcelas</span>` : ""}
+          ${desp > 0 ? `<span style="color:var(--warning)">− ${formatarMoeda(desp)} despesas</span>` : ""}
+          ${meta > 0 ? `<span style="color:var(--primary)">− ${formatarMoeda(meta)} meta</span>` : ""}
+          <span style="color:var(--success)">= ${formatarMoeda(livre)} livre</span>
+        </div>
+      </div>`;
+  }
+
+  // 2. Quando as parcelas acabam + linha dos proximos meses
+  function renderFimParcelas() {
+    const el = document.getElementById("visao-fim");
+    if (!el) return;
+    const fim = ultimaParcelaPendente();
+    if (!fim) { el.innerHTML = ""; return; }
+
+    const meses = calendarioProximosMeses().filter((m) => m.parcelas > 0);
+    const linha = meses
+      .map(
+        (m) => `
+      <div style="flex:1;min-width:72px;text-align:center;padding:8px 4px;background:var(--bg-card);border:1px solid var(--border-light);border-radius:10px">
+        <div style="font-size:11px;color:var(--text-secondary);text-transform:capitalize">${m.data.toLocaleDateString("pt-BR", { month: "short" })}</div>
+        <div style="font-size:13px;font-weight:700">${formatarMoeda(m.parcelas)}</div>
+      </div>`,
+      )
+      .join("");
+
+    el.innerHTML = `
+      <div class="card" style="padding:16px">
+        <div style="display:flex;align-items:center;gap:8px;font-size:15px;font-weight:700;margin-bottom:10px">
+          <i data-lucide="calendar-check" class="icon icon-sm" style="color:var(--success)"></i>
+          Suas parcelas terminam em ${fim.toLocaleDateString("pt-BR", { day: "2-digit", month: "long" })}
+        </div>
+        <div style="display:flex;gap:8px;overflow-x:auto">${linha}</div>
+      </div>`;
+    if (window.lucide) lucide.createIcons();
+  }
+
+  // 4. Gasto do dia, como apoio (texto menor, sem ser o maior numero da tela)
+  function renderGastoDia() {
+    const el = document.getElementById("visao-gastodia");
+    if (!el) return;
+    const ritmo = gastoHoje();
+    if (totalRenda() <= 0) { el.innerHTML = ""; return; }
+    el.innerHTML = `
+      <div style="text-align:center;font-size:13px;color:var(--text-secondary)">
+        <i data-lucide="coins" class="icon icon-sm" style="vertical-align:-3px"></i>
+        Até <b style="color:var(--text)">${formatarMoeda(Math.max(0, ritmo))}</b> por dia sem mexer na sua meta
+      </div>`;
+    if (window.lucide) lucide.createIcons();
   }
 
   // ─── Render Indicadores ────────────────────────────────────────────────────
@@ -306,7 +450,8 @@
   function renderPlanoAcao() {
     const el = document.getElementById("assistente-acoes");
     if (!el) return;
-    el.innerHTML = gerarPlanoAcao().map((acao) => `
+    // um proximo passo so: o primeiro (mais urgente) da lista
+    el.innerHTML = gerarPlanoAcao().slice(0, 1).map((acao) => `
       <div class="acao-financeira ${acao.urgente ? "urgente" : ""}">
         <div class="acao-financeira-icone"><i data-lucide="${escapeHtml(acao.icone)}" class="icon icon-sm"></i></div>
         <div><strong>${escapeHtml(acao.titulo)}</strong><span>${escapeHtml(acao.texto)}</span></div>
@@ -346,12 +491,6 @@
     const insights = [];
     const saldo = saldoDisponivel();
     const renda = totalRenda();
-    const desp = totalDespesasFixas();
-    const parc = parcelaMensalTotal();
-    const comprometido = desp + parc;
-    const pct = renda > 0 ? (comprometido / renda) * 100 : 0;
-    const meses = mesesParaQuitacao();
-
     if (renda === 0) {
       insights.push({
         tipo: "info",
@@ -360,61 +499,25 @@
         texto: "Acesse a aba Orçamento e informe sua renda mensal para receber insights personalizados.",
       });
     } else {
-      if (pct > 80) {
-        insights.push({
-          tipo: "alerta",
-          icone: "alert-triangle",
-          titulo: "Alto comprometimento de renda",
-          texto: `${Math.round(pct)}% da sua renda já está comprometida com despesas fixas e parcelas. Risco de orçamento negativo.`,
-        });
-      } else if (pct > 60) {
-        insights.push({
-          tipo: "info",
-          icone: "info",
-          titulo: "Atenção ao comprometimento",
-          texto: `${Math.round(pct)}% da sua renda comprometida. Tente manter abaixo de 60% para ter folga financeira.`,
-        });
-      }
-
+      // Alertar so quando ha acao possivel: sobra do mes negativa
       if (saldo < 0) {
         insights.push({
           tipo: "alerta",
           icone: "alert-circle",
-          titulo: "Orçamento negativo",
-          texto: `Suas despesas e parcelas superam sua renda em ${formatarMoeda(Math.abs(saldo))}. É necessário cortar gastos imediatamente.`,
-        });
-      } else if (saldo < renda * 0.1) {
-        insights.push({
-          tipo: "alerta",
-          icone: "alert-triangle",
-          titulo: "Margem muito pequena",
-          texto: `Você tem apenas ${formatarMoeda(saldo)} de saldo livre. Qualquer gasto imprevisto pode comprometer o mês.`,
+          titulo: "Este mês falta fechar a conta",
+          texto: `Suas despesas e parcelas superam a renda em ${formatarMoeda(Math.abs(saldo))}. Veja o que dá para adiar na aba Orçamento.`,
         });
       }
 
-      if (meses !== null) {
-        if (meses <= 3) {
-          insights.push({
-            tipo: "meta",
-            icone: "trophy",
-            titulo: "Próximo de quitar as dívidas",
-            texto: `Mantendo o ritmo atual, você quita todas as dívidas em aproximadamente ${meses} mês(es). Ótimo momento para acelerar!`,
-          });
-        } else if (meses <= 12) {
-          insights.push({
-            tipo: "dica",
-            icone: "trending-up",
-            titulo: `${meses} meses para zerar as dívidas`,
-            texto: `Adicionar ${formatarMoeda(parcelaMensalTotal() * 0.2)} a mais nas parcelas pode reduzir esse prazo em até 20%.`,
-          });
-        } else {
-          insights.push({
-            tipo: "info",
-            icone: "clock",
-            titulo: `Prazo estimado: ${meses} meses`,
-            texto: `Considere usar a estratégia avalanche: pague primeiro a dívida com maior juros para economizar no longo prazo.`,
-          });
-        }
+      // Parcelas tem data fixa: mostrar quando terminam, nao um prazo estimado
+      const fim = ultimaParcelaPendente();
+      if (fim) {
+        insights.push({
+          tipo: "meta",
+          icone: "calendar-check",
+          titulo: "Quando suas parcelas terminam",
+          texto: `A última parcela vence em ${fim.toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" })}.`,
+        });
       }
 
       const economia = orcamento.metaEconomia || 0;
@@ -444,18 +547,12 @@
         });
         const top = Object.entries(catContagem).sort((a, b) => b[1] - a[1])[0];
         if (top) {
-          const nomes = {
-            cartao: "Cartão de crédito",
-            emprestimo: "Empréstimos",
-            boleto: "Boletos",
-            assinatura: "Assinaturas",
-            outros: "Outros",
-          };
+          const nome = window.rotuloCategoria ? window.rotuloCategoria(top[0]) : top[0];
           insights.push({
             tipo: "info",
             icone: "pie-chart",
-            titulo: `${nomes[top[0]] || top[0]} é a maior categoria`,
-            texto: `${formatarMoeda(top[1])} concentrados nessa categoria. Considere renegociar ou eliminar primeiro.`,
+            titulo: `${nome} é seu maior gasto parcelado`,
+            texto: `${formatarMoeda(top[1])} no total nessa categoria.`,
           });
         }
       }
@@ -504,7 +601,7 @@
       canvas.setAttribute("role", "img");
       canvas.setAttribute(
         "aria-label",
-        `Projeção de saldo acumulado para os próximos ${dados.length} meses. ${resumo}.`,
+        `Quanto você pode juntar nos próximos ${dados.length} meses. ${resumo}.`,
       );
     }
     if (window.aplicarTemaGraficos) window.aplicarTemaGraficos();
@@ -548,10 +645,7 @@
         scales: {
           y: {
             ticks: {
-              callback: (v) =>
-                "R$ " +
-                Math.round(v / 1000) +
-                (v >= 1000 || v <= -1000 ? "k" : ""),
+              callback: (v) => "R$ " + Math.round(v).toLocaleString("pt-BR"),
             },
           },
         },
@@ -559,59 +653,24 @@
     });
   }
 
-  // ─── Simulacao ─────────────────────────────────────────────────────────────
-
-  let estrategiaAtual = "avalanche";
-
-  window.selecionarEstrategia = (tipo, btn) => {
-    estrategiaAtual = tipo;
-    document.querySelectorAll("#btn-avalanche, #btn-bola").forEach((b) => b.classList.remove("ativo"));
-    btn.classList.add("ativo");
-    renderEstrategia();
-  };
-
-  // ordena dividas pela estrategia escolhida
-  function dividasOrdenadas(tipo) {
-    const divs = (window.getDividas ? window.getDividas() : []).filter(
-      (d) => d.parcelas?.some((p) => p.status === "pendente")
-    );
-    if (tipo === "avalanche") {
-      // maior valor total pendente primeiro (proxy de maior impacto financeiro)
-      return [...divs].sort((a, b) => {
-        const va = a.parcelas.filter((p) => p.status === "pendente").reduce((s, p) => s + (p.valor || 0), 0);
-        const vb = b.parcelas.filter((p) => p.status === "pendente").reduce((s, p) => s + (p.valor || 0), 0);
-        return vb - va;
-      });
-    } else {
-      // menor valor total pendente primeiro (bola de neve)
-      return [...divs].sort((a, b) => {
-        const va = a.parcelas.filter((p) => p.status === "pendente").reduce((s, p) => s + (p.valor || 0), 0);
-        const vb = b.parcelas.filter((p) => p.status === "pendente").reduce((s, p) => s + (p.valor || 0), 0);
-        return va - vb;
-      });
-    }
-  }
+  // ─── Proximos meses ──────────────────────────────────────────────────────────
 
   function renderSimulacao() {
     const total = totalDividasPendentes();
-    const disp = saldoDisponivel();
-    const meses = mesesParaQuitacao(0);
     const el = document.getElementById("simulacao-resultado");
     if (!el) return;
-
     const renda = totalRenda();
-    if (total === 0 && renda === 0) {
+
+    if (renda === 0) {
       el.innerHTML = `
         <div style="text-align:center;padding:24px 16px;color:var(--text-secondary)">
-          <i data-lucide="calculator" style="width:40px;height:40px;stroke:currentColor;fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;margin-bottom:8px;opacity:.4"></i>
-          <div style="font-weight:700;font-size:15px;color:var(--text);margin-bottom:4px">Simulação indisponível</div>
-          <div style="font-size:13px;line-height:1.5">
-            Para ver a simulação, preencha:<br>
-            <strong>1.</strong> Sua renda mensal na aba Orçamento<br>
-            <strong>2.</strong> Pelo menos uma dívida ativa
-          </div>
+          <i data-lucide="calendar-days" style="width:40px;height:40px;stroke:currentColor;fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;margin-bottom:8px;opacity:.4"></i>
+          <div style="font-weight:700;font-size:15px;color:var(--text);margin-bottom:4px">Falta a sua renda</div>
+          <div style="font-size:13px;line-height:1.5">Informe sua renda mensal na aba Orçamento para ver os próximos meses.</div>
         </div>`;
       if (window.lucide) lucide.createIcons();
+      renderRanking();
+      renderSimulacaoExtra(0);
       return;
     }
 
@@ -619,67 +678,47 @@
       el.innerHTML = `
         <div style="text-align:center;padding:20px;color:var(--success)">
           <i data-lucide="party-popper" style="width:40px;height:40px;stroke:currentColor;fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;margin-bottom:8px"></i>
-          <div style="font-weight:700;font-size:16px">Sem dívidas pendentes!</div>
-          <div style="font-size:13px;color:var(--text-secondary);margin-top:4px">Continue assim!</div>
-        </div>`;
-      if (window.lucide) lucide.createIcons();
-      return;
-    }
-
-    // achado 12: saldo mensal negativo torna o prazo impossivel de estimar;
-    // explicar e apontar o caminho em vez de mostrar "—"
-    if (disp <= 0) {
-      el.innerHTML = `
-        <div style="text-align:center;padding:24px 16px;color:var(--text-secondary)">
-          <i data-lucide="alert-triangle" style="width:40px;height:40px;stroke:var(--warning);fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;margin-bottom:8px"></i>
-          <div style="font-weight:700;font-size:15px;color:var(--text);margin-bottom:4px">Não dá para estimar o prazo</div>
-          <div style="font-size:13px;line-height:1.5;margin-bottom:12px">Seu saldo do mês está negativo (${formatarMoeda(disp)}). Reveja o Orçamento para liberar valor e quitar as dívidas.</div>
-          <button class="btn btn-sm" type="button" onclick="irParaOrcamento()">Revisar Orçamento</button>
+          <div style="font-weight:700;font-size:16px">Sem parcelas pendentes!</div>
+          <div style="font-size:13px;color:var(--text-secondary);margin-top:4px">A renda inteira fica livre para suas metas.</div>
         </div>`;
       if (window.lucide) lucide.createIcons();
       renderRanking();
-      renderEstrategia();
       renderSimulacaoExtra(0);
-      renderPrevisaoMes();
       return;
     }
 
-    const dataQuitacao = new Date();
-    dataQuitacao.setMonth(dataQuitacao.getMonth() + (meses || 0));
-    const pct = disp > 0 ? Math.min(100, Math.round((disp / Math.max(1, total)) * 100 * (meses || 1) / (meses || 1))) : 0;
-
-    el.innerHTML = `
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-        <div class="indicador-card">
-          <div class="indicador-label">Total pendente</div>
-          <div class="indicador-valor" style="font-size:16px;color:var(--danger)">${formatarMoeda(total)}</div>
-        </div>
-        <div class="indicador-card">
-          <div class="indicador-label">Disponível/mês</div>
-          <div class="indicador-valor" style="font-size:16px;color:${disp >= 0 ? "var(--success)" : "var(--danger)"}">${formatarMoeda(disp)}</div>
-        </div>
-        <div class="indicador-card ${meses && meses <= 6 ? "positivo" : meses && meses <= 18 ? "" : "alerta"}">
-          <div class="indicador-label">Prazo estimado</div>
-          <div class="indicador-valor" style="font-size:16px">${meses ? meses + " meses" : "—"}</div>
-        </div>
-        <div class="indicador-card">
-          <div class="indicador-label">Previsão quitação</div>
-          <div class="indicador-valor" style="font-size:13px;font-weight:700">${meses ? dataQuitacao.toLocaleDateString("pt-BR", { month: "short", year: "numeric" }) : "—"}</div>
-        </div>
-      </div>`;
+    // Calendario real: uma linha por mes ate a ultima parcela (+1), com parcelas e sobra
+    const meses = calendarioProximosMeses();
+    el.innerHTML = meses
+      .map((m) => {
+        const sobraCor = m.sobra >= 0 ? "var(--success)" : "var(--danger)";
+        const nomeMesCal = m.data.toLocaleDateString("pt-BR", { month: "long", year: "2-digit" });
+        return `
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 0;border-bottom:1px solid var(--border-light)">
+          <div style="text-transform:capitalize;font-weight:700;font-size:14px;min-width:92px">${nomeMesCal}</div>
+          <div style="text-align:right">
+            <div style="font-size:12px;color:var(--text-secondary)">${m.parcelas > 0 ? "parcelas " + formatarMoeda(m.parcelas) : "sem parcelas"}</div>
+            <div style="font-weight:700;color:${sobraCor}">sobra ${formatarMoeda(m.sobra)}</div>
+          </div>
+        </div>`;
+      })
+      .join("");
     if (window.lucide) lucide.createIcons();
 
+    renderGraficoProjecao();
     renderRanking();
-    renderEstrategia();
     renderSimulacaoExtra(0);
-    renderPrevisaoMes();
   }
 
   function renderRanking() {
     const el = document.getElementById("simulacao-ranking");
     if (!el) return;
-    const divs = window.getDividas ? window.getDividas() : [];
-    if (!divs.length) { el.innerHTML = ""; return; }
+    // so dividas ativas (com parcela pendente); quitadas nao poluem a lista
+    const divs = dividasAtivas();
+    if (!divs.length) {
+      el.innerHTML = `<p style="color:var(--text-secondary);font-size:13px">Nenhuma dívida ativa.</p>`;
+      return;
+    }
 
     el.innerHTML = divs.map((d) => {
       const total = (d.parcelas || []).length;
@@ -709,40 +748,6 @@
     }).join("");
   }
 
-  function renderEstrategia() {
-    const el = document.getElementById("simulacao-estrategia");
-    if (!el) return;
-    const ord = dividasOrdenadas(estrategiaAtual);
-    if (!ord.length) {
-      el.innerHTML = `<p style="color:var(--text-secondary);font-size:13px">Nenhuma dívida pendente.</p>`;
-      return;
-    }
-
-    const descricao = estrategiaAtual === "avalanche"
-      ? "Pague primeiro as dívidas de maior valor — reduz o montante total mais rápido."
-      : "Pague primeiro as dívidas menores — elimina contas rápido e dá motivação.";
-
-    el.innerHTML = `
-      <div class="insight-card tipo-info" style="margin-bottom:12px">
-        <div class="insight-icone"><i data-lucide="info" style="width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"></i></div>
-        <div class="insight-texto">${descricao}</div>
-      </div>
-      ${ord.map((d, i) => {
-        const pendVal = (d.parcelas || []).filter((p) => p.status === "pendente").reduce((s, p) => s + (p.valor || 0), 0);
-        const proxima = (d.parcelas || []).find((p) => p.status === "pendente");
-        return `
-          <div style="display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--border-light)">
-            <div style="width:28px;height:28px;border-radius:50%;background:var(--gradient);color:white;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex-shrink:0">${i + 1}</div>
-            <div style="flex:1">
-              <div style="font-weight:700">${escapeHtml(d.nome)}</div>
-              ${proxima ? `<div style="font-size:12px;color:var(--text-secondary)">Próxima: ${new Date(proxima.vencimento + "T00:00:00").toLocaleDateString("pt-BR")}</div>` : ""}
-            </div>
-            <div style="font-weight:700;color:var(--danger)">${formatarMoeda(pendVal)}</div>
-          </div>`;
-      }).join("")}`;
-    if (window.lucide) lucide.createIcons();
-  }
-
   window.recalcularSimulacao = (extra = 0) => {
     renderSimulacaoExtra(parseFloat(extra) || 0);
   };
@@ -750,8 +755,8 @@
   function atualizarSliderMax() {
     const slider = document.getElementById("extraQuitacaoSlider");
     if (!slider) return;
-    const total = totalDividasPendentes();
-    const novoMax = Math.max(2000, Math.ceil(total / 6 / 50) * 50);
+    // o teto do controle e a sobra real do mes, nao um valor fixo de R$ 2.000
+    const novoMax = Math.max(50, Math.ceil(Math.max(0, saldoDisponivel()) / 50) * 50);
     slider.max = novoMax;
     const labelMax = slider.parentElement?.querySelector("span:last-child");
     if (labelMax) labelMax.textContent = formatarMoeda(novoMax);
@@ -761,76 +766,46 @@
     const el = document.getElementById("simulacao-extra");
     if (!el) return;
     if (!extra || extra <= 0) {
-      el.innerHTML = `<p style="color:var(--text-secondary);font-size:13px;text-align:center">Mova o slider para ver o impacto de um pagamento extra.</p>`;
+      el.innerHTML = `<p style="color:var(--text-secondary);font-size:13px;text-align:center">Mova o controle para ver em quanto tempo sua reserva fica completa.</p>`;
       return;
     }
-    const mesesSem = mesesParaQuitacao(0);
-    const mesesCom = mesesParaQuitacao(extra);
-    const ganho = (mesesSem || 0) - (mesesCom || 0);
-    const economia = extra * ganho;
+
+    const atual = orcamento.reservaAtual || 0;
+    const meta = orcamento.metaReserva || 0;
+    const falta = Math.max(0, meta - atual);
+
+    if (meta <= 0) {
+      el.innerHTML = `
+        <div class="card" style="padding:14px;text-align:center;font-size:13px;color:var(--text-secondary)">
+          Defina uma reserva desejada na aba Orçamento para ver quando ela fica completa guardando ${formatarMoeda(extra)} por mês.
+        </div>`;
+      return;
+    }
+    if (falta <= 0) {
+      el.innerHTML = `
+        <div class="card" style="padding:14px;text-align:center">
+          <div style="color:var(--success);font-weight:700;font-size:15px">Sua reserva já está completa!</div>
+          <div style="color:var(--text-secondary);font-size:12px;margin-top:4px">Guarde os ${formatarMoeda(extra)} para suas próximas metas.</div>
+        </div>`;
+      return;
+    }
+
+    const mesesParaCompletar = Math.ceil(falta / extra);
+    const alvo = new Date();
+    alvo.setMonth(alvo.getMonth() + mesesParaCompletar);
+    const nomeAlvo = alvo.toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
 
     el.innerHTML = `
       <div class="card" style="padding:14px">
         <div style="display:flex;justify-content:space-between;margin-bottom:8px;font-size:14px">
-          <span style="color:var(--text-secondary)">Sem extra</span>
-          <strong>${mesesSem ? mesesSem + " meses" : "—"}</strong>
+          <span style="color:var(--text-secondary)">Falta para a reserva</span>
+          <strong>${formatarMoeda(falta)}</strong>
         </div>
-        <div style="display:flex;justify-content:space-between;margin-bottom:12px;font-size:14px">
-          <span style="color:var(--text-secondary)">Com + ${formatarMoeda(extra)}/mês</span>
-          <strong style="color:var(--success)">${mesesCom ? mesesCom + " meses" : "—"}</strong>
-        </div>
-        ${ganho > 0 ? `
-          <div style="background:var(--success-soft);border-radius:10px;padding:12px;text-align:center">
-            <div style="color:var(--success);font-weight:700;font-size:15px">-${ganho} meses de dívida</div>
-            ${economia > 0 ? `<div style="color:var(--text-secondary);font-size:12px;margin-top:4px">Economia de ~${formatarMoeda(economia)} em juros e tempo</div>` : ""}
-          </div>` : `<div style="color:var(--text-secondary);font-size:13px;text-align:center">Aumente o valor para ver impacto significativo.</div>`}
-      </div>`;
-  }
-
-  function renderPrevisaoMes() {
-    const el = document.getElementById("previsao-mes");
-    if (!el) return;
-    const { gastado, restante, percentual } = previsaoFimMes();
-    const hoje = new Date();
-    const diasNoMes = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0).getDate();
-    const diasRestantes = diasNoMes - hoje.getDate();
-    const ritmo = gastoHoje();
-    const negativo = restante < 0;
-
-    el.innerHTML = `
-      <div style="margin-bottom:12px">
-        <div class="progresso-label">
-          <span>Consumido este mês</span>
-          <span style="color:${percentual > 80 || negativo ? "var(--danger)" : "var(--text-secondary)"}">${percentual}%</span>
-        </div>
-        <div class="progresso-barra">
-          <div class="progresso-preenchimento" style="width:${Math.min(100, percentual)}%;background:${percentual > 80 || negativo ? "var(--danger)" : "var(--gradient)"}"></div>
-        </div>
-      </div>
-      ${negativo ? `
-        <div style="background:var(--danger-soft);border:1px solid color-mix(in srgb, var(--danger) 25%, transparent);border-radius:10px;padding:10px 12px;margin-bottom:10px;display:flex;align-items:center;gap:8px;font-size:13px;color:var(--danger);font-weight:600">
-          <i data-lucide="alert-triangle" style="width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"></i>
-          Saldo negativo no mês! Reveja suas despesas.
-        </div>` : ""}
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-        <div class="indicador-card">
-          <div class="indicador-label">Gastado</div>
-          <div class="indicador-valor" style="font-size:15px;color:var(--warning)">${formatarMoeda(gastado)}</div>
-        </div>
-        <div class="indicador-card ${restante >= 0 ? "positivo" : "alerta"}">
-          <div class="indicador-label">Restante</div>
-          <div class="indicador-valor" style="font-size:15px;color:${restante >= 0 ? "var(--success)" : "var(--danger)"}">${formatarMoeda(restante)}</div>
-        </div>
-        <div class="indicador-card">
-          <div class="indicador-label">Ritmo diario</div>
-          <div class="indicador-valor" style="font-size:15px">${formatarMoeda(ritmo)}</div>
-        </div>
-        <div class="indicador-card">
-          <div class="indicador-label">Dias restantes</div>
-          <div class="indicador-valor" style="font-size:15px">${diasRestantes}</div>
+        <div style="background:var(--success-soft);border-radius:10px;padding:12px;text-align:center">
+          <div style="color:var(--success);font-weight:700;font-size:15px">Completa em ${nomeAlvo}</div>
+          <div style="color:var(--text-secondary);font-size:12px;margin-top:4px">Guardando ${formatarMoeda(extra)} por mês (${mesesParaCompletar} ${mesesParaCompletar === 1 ? "mês" : "meses"})</div>
         </div>
       </div>`;
-    if (window.lucide) lucide.createIcons();
   }
 
   // ─── Orcamento form ────────────────────────────────────────────────────────
@@ -878,8 +853,42 @@
     orcamento.metaEconomia = parseFloat(document.getElementById("metaEconomia")?.value) || 0;
     orcamento.metaReserva = parseFloat(document.getElementById("metaReserva")?.value) || 0;
     orcamento.reservaAtual = parseFloat(document.getElementById("reservaAtual")?.value) || 0;
+    renderOrcamentoUI(); // resumo atualiza na hora; persistencia vai no debounce
     debounceSalvar();
   };
+
+  // resumo que acompanha a rolagem da aba Orcamento e atualiza ao digitar
+  function renderResumoOrcamento() {
+    const el = document.getElementById("orcamento-resumo");
+    if (!el) return;
+    const renda = totalRenda();
+    const parc = parcelaMensalTotal();
+    const desp = totalDespesasFixas();
+    const sobra = renda - parc - desp;
+    const cor = sobra >= 0 ? "var(--success)" : "var(--danger)";
+    el.innerHTML = `
+      <span style="color:var(--text-secondary)">Renda <b style="color:var(--text)">${formatarMoeda(renda)}</b></span>
+      <span style="color:var(--text-secondary)"> − parcelas ${formatarMoeda(parc)}</span>
+      <span style="color:var(--text-secondary)"> − despesas ${formatarMoeda(desp)}</span>
+      <b style="color:${cor}"> = sobra ${formatarMoeda(sobra)}</b>`;
+  }
+
+  // sugestao de meta de economia = metade da sobra, arredondada
+  function renderMetaSugestao() {
+    const el = document.getElementById("metaSugestao");
+    if (!el) return;
+    const sobra = saldoDisponivel();
+    if (sobra <= 0) { el.textContent = ""; return; }
+    const sugestao = Math.floor(sobra / 2 / 10) * 10;
+    el.textContent = sugestao > 0
+      ? `Com a sobra atual, até ${formatarMoeda(sugestao)} por mês cabe sem apertar.`
+      : "";
+  }
+
+  function renderOrcamentoUI() {
+    renderResumoOrcamento();
+    renderMetaSugestao();
+  }
 
   function renderizarDespesas() {
     const lista = document.getElementById("despesas-lista");
@@ -889,30 +898,68 @@
       lista.innerHTML = `<p style="color:var(--text-secondary);font-size:13px;padding:8px 0">Nenhuma despesa cadastrada.</p>`;
       return;
     }
+
+    const itens = desp.map((d, i) => ({ d, i, divida: dividaVinculadaDespesa(d) }));
+    const normais = itens.filter((x) => !x.divida);
+    const duplicadas = itens.filter((x) => x.divida);
+    const rotulo = (d) => escapeHtml(window.rotuloCategoria ? window.rotuloCategoria(d.categoria) : d.categoria || "");
+    const btnRemover = (i) => `
+      <button onclick="removerDespesa(${i})" style="background:none;border:none;color:var(--danger);cursor:pointer;padding:4px;display:flex">
+        <i data-lucide="x" style="width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"></i>
+      </button>`;
+
+    const linhaNormal = ({ d, i }) => `
+      <div class="despesa-item">
+        <div>
+          <div class="despesa-nome">${escapeHtml(d.nome)}</div>
+          <div class="despesa-cat">${rotulo(d)}</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <span class="despesa-valor">${formatarMoeda(d.valor)}</span>
+          ${btnRemover(i)}
+        </div>
+      </div>`;
+
+    const linhaDup = ({ d, i, divida }) => {
+      // casou por nome mas ainda nao gravou o vinculo: sugerir em vez de decidir sozinho
+      const sugerir = !d.dividaId;
+      const aviso = sugerir
+        ? `<div style="font-size:12px;margin-top:4px;color:var(--text-secondary)">Parece ser a dívida <b style="color:var(--text)">${escapeHtml(divida.nome)}</b>. <button type="button" onclick="vincularDespesa(${i},'${escapeHtml(divida.id)}')" style="background:none;border:none;color:var(--primary);cursor:pointer;padding:0;font:inherit;text-decoration:underline">Vincular</button></div>`
+        : `<div class="despesa-aviso" style="color:var(--warning,#e3a54e);font-size:12px;margin-top:4px">Já cadastrada como dívida — não contada em dobro.</div>`;
+      return `
+      <div class="despesa-item">
+        <div>
+          <div class="despesa-nome">${escapeHtml(d.nome)}</div>
+          <div class="despesa-cat">${rotulo(d)}</div>
+          ${aviso}
+        </div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <span class="despesa-valor" style="text-decoration:line-through;opacity:.6">${formatarMoeda(d.valor)}</span>
+          ${btnRemover(i)}
+        </div>
+      </div>`;
+    };
+
     lista.innerHTML = `
       <div class="card" style="padding:12px 16px">
-        ${desp
-          .map((d, i) => {
-            const dup = despesaDuplicada(d);
-            return `
-          <div class="despesa-item">
-            <div>
-              <div class="despesa-nome">${escapeHtml(d.nome)}</div>
-              <div class="despesa-cat">${escapeHtml(window.rotuloCategoria ? window.rotuloCategoria(d.categoria) : d.categoria || "")}</div>
-              ${dup ? `<div class="despesa-aviso" style="color:var(--warning,#e3a54e);font-size:12px;margin-top:4px">Já cadastrada como dívida — não contada em dobro.</div>` : ""}
-            </div>
-            <div style="display:flex;align-items:center;gap:10px">
-              <span class="despesa-valor"${dup ? ' style="text-decoration:line-through;opacity:.6"' : ""}>${formatarMoeda(d.valor)}</span>
-              <button onclick="removerDespesa(${i})" style="background:none;border:none;color:var(--danger);cursor:pointer;padding:4px;display:flex">
-                <i data-lucide="x" style="width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"></i>
-              </button>
-            </div>
-          </div>`;
-          })
-          .join("")}
+        ${normais.map(linhaNormal).join("")}
+        ${duplicadas.length ? `
+          <details style="margin-top:8px">
+            <summary style="cursor:pointer;font-size:13px;color:var(--text-secondary);padding:6px 0">${duplicadas.length} despesa(s) já contada(s) nas dívidas</summary>
+            ${duplicadas.map(linhaDup).join("")}
+          </details>` : ""}
       </div>`;
     if (window.lucide) lucide.createIcons();
   }
+
+  window.vincularDespesa = (i, dividaId) => {
+    if (!orcamento.despesas || !orcamento.despesas[i]) return;
+    orcamento.despesas[i].dividaId = dividaId;
+    persistirOrcamento();
+    renderizarDespesas();
+    renderOrcamentoUI();
+    renderTudo();
+  };
 
   function renderizarRendasExtras() {
     const lista = document.getElementById("rendas-extras-lista");
@@ -938,10 +985,21 @@
     if (window.lucide) lucide.createIcons();
   }
 
+  // monta o seletor "Isso ja esta nas suas dividas?" com as dividas ativas
+  function preencherVinculoDespesa() {
+    const sel = document.getElementById("despesaVinculo");
+    if (!sel) return;
+    const ativas = dividasAtivas();
+    sel.innerHTML =
+      `<option value="">Não, é uma despesa à parte</option>` +
+      ativas.map((d) => `<option value="${escapeHtml(d.id)}">Sim — ${escapeHtml(d.nome)}</option>`).join("");
+  }
+
   window.adicionarDespesa = () => {
     document.getElementById("despesaNome").value = "";
     document.getElementById("despesaValor").value = "";
     document.getElementById("despesaCategoria").value = "";
+    preencherVinculoDespesa();
     document.getElementById("modalDespesa").style.display = "flex";
     setTimeout(() => document.getElementById("despesaNome").focus(), 100);
   };
@@ -950,11 +1008,15 @@
     const nome = document.getElementById("despesaNome").value.trim();
     const valor = parseFloat(document.getElementById("despesaValor").value);
     const categoria = document.getElementById("despesaCategoria").value;
+    const dividaId = document.getElementById("despesaVinculo")?.value || "";
     if (!nome || isNaN(valor) || valor <= 0) return;
-    (orcamento.despesas = orcamento.despesas || []).push({ nome, valor, categoria });
+    const nova = { nome, valor, categoria };
+    if (dividaId) nova.dividaId = dividaId;
+    (orcamento.despesas = orcamento.despesas || []).push(nova);
     document.getElementById("modalDespesa").style.display = "none";
     persistirOrcamento();
     renderizarDespesas();
+    renderOrcamentoUI();
     renderTudo();
   };
 
@@ -965,6 +1027,7 @@
     orcamento.despesas.splice(i, 1);
     persistirOrcamento();
     renderizarDespesas();
+    renderOrcamentoUI();
     renderTudo();
   };
 
@@ -976,6 +1039,7 @@
   window.editarRendaExtra = (i, campo, valor) => {
     orcamento.rendasExtras[i][campo] = valor;
     persistirOrcamento();
+    renderOrcamentoUI();
     renderTudo();
   };
 
@@ -986,6 +1050,7 @@
     orcamento.rendasExtras.splice(i, 1);
     persistirOrcamento();
     renderizarRendasExtras();
+    renderOrcamentoUI();
     renderTudo();
   };
 
@@ -1012,7 +1077,7 @@
         el.innerHTML = `
           <div style="text-align:center;padding:24px;color:var(--text-secondary)">
             <div class="spinner" style="width:28px;height:28px;margin:0 auto 8px"></div>
-            <div style="font-size:13px">Carregando simulacao...</div>
+            <div style="font-size:13px">Carregando próximos meses...</div>
           </div>`;
       }
       setTimeout(() => {
@@ -1020,8 +1085,13 @@
         atualizarSliderMax();
       }, 100);
     }
+    if (tab === "orcamento") renderOrcamentoUI();
     if (tab === "visao") renderTudo();
-    if (tab === "chat" && window.lucide) lucide.createIcons();
+    if (tab === "chat") {
+      renderChatPerguntas();
+      personalizarSaudacaoChat();
+      if (window.lucide) lucide.createIcons();
+    }
   };
 
 
@@ -1043,6 +1113,46 @@
     const c = document.getElementById('chatMensagens');
     if (c) c.innerHTML = '';
   };
+
+  // perguntas prontas geradas dos dados reais, trocadas conforme a situacao
+  function gerarPerguntasChat() {
+    const perguntas = [];
+    const hoje = new Date();
+    const proxMes = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 1);
+    const nomeProxMes = proxMes.toLocaleDateString("pt-BR", { month: "long" });
+    const sobra = saldoDisponivel();
+    const faltaReserva = Math.max(0, (orcamento.metaReserva || 0) - (orcamento.reservaAtual || 0));
+    const fim = ultimaParcelaPendente();
+
+    perguntas.push(`Como me organizar para ${nomeProxMes}?`);
+    if (faltaReserva > 0) perguntas.push("Quanto guardar para completar a reserva?");
+    if (sobra > 0) perguntas.push("O que fazer com a minha folga do mês?");
+    if (fim) perguntas.push("Como me preparo para quando as parcelas acabarem?");
+    if (perguntas.length < 3) perguntas.push("Como montar minha reserva de emergência?");
+    return perguntas.slice(0, 4);
+  }
+
+  function renderChatPerguntas() {
+    const el = document.getElementById("chatPerguntas");
+    if (!el) return;
+    el.innerHTML = gerarPerguntasChat()
+      .map(
+        (q) =>
+          `<button class="chip" type="button" onclick="window.enviarPerguntaChip('${q.replace(/'/g, "\\'")}')">${escapeHtml(q)}</button>`,
+      )
+      .join("");
+  }
+
+  function personalizarSaudacaoChat() {
+    const el = document.getElementById("chatSaudacao");
+    if (!el) return;
+    const u = window.getCurrentUser && window.getCurrentUser();
+    const nome = u && u.displayName ? u.displayName.trim().split(/\s+/)[0] : "";
+    const parc = totalParcelas();
+    const saud = nome ? `Oi, ${escapeHtml(nome)}! ` : "Oi! ";
+    const vi = parc > 0 ? `Vi suas ${parc} parcelas e sua renda. ` : "";
+    el.innerHTML = `${saud}${vi}Em que posso ajudar?`;
+  }
 
   function coletarContextoFinanceiro() {
     const renda = totalRenda();
@@ -1202,23 +1312,20 @@
   // ─── Entry point ───────────────────────────────────────────────────────────
 
   function renderTudo() {
-    renderIndicadores();
+    renderSobraMes();
+    renderFimParcelas();
     renderPlanoAcao();
+    renderGastoDia();
     renderReserva();
+    renderIndicadores();
     renderInsights();
-    const detalhes = document.querySelector(".assistente-detalhes");
-    if (detalhes && !detalhes.dataset.graficoListener) {
-      detalhes.addEventListener("toggle", () => {
-        if (detalhes.open) renderGraficoProjecao();
-      });
-      detalhes.dataset.graficoListener = "true";
-    }
-    if (detalhes?.open) renderGraficoProjecao();
   }
 
   window.iniciarAssistente = async () => {
     await carregarOrcamento();
     carregarPreferenciaNotificacao();
     renderTudo();
+    renderChatPerguntas();
+    personalizarSaudacaoChat();
   };
 })();

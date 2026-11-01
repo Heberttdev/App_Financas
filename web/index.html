@@ -125,7 +125,13 @@
           </div>
           <div class="form-group">
             <label for="despesaValor">Valor (R$)</label>
-            <input type="number" id="despesaValor" placeholder="0,00" step="0.01" />
+            <input type="number" inputmode="decimal" id="despesaValor" placeholder="0,00" step="0.01" />
+          </div>
+          <div class="form-group" id="despesaVinculoGrupo">
+            <label for="despesaVinculo">Isso já está nas suas dívidas?</label>
+            <select id="despesaVinculo">
+              <option value="">Não, é uma despesa à parte</option>
+            </select>
           </div>
           <div class="form-group">
             <label for="despesaCategoria">Categoria</label>
@@ -640,58 +646,59 @@
         <div class="assistente-tabs" role="tablist" aria-label="Seções do Assistente">
           <button class="assistente-tab ativo" id="tab-visao" role="tab" aria-selected="true" aria-controls="painel-visao" onclick="abrirTabAssistente('visao', this)">Visão Geral</button>
           <button class="assistente-tab" id="tab-orcamento" role="tab" aria-selected="false" aria-controls="painel-orcamento" onclick="abrirTabAssistente('orcamento', this)">Orçamento</button>
-          <button class="assistente-tab" id="tab-simulacao" role="tab" aria-selected="false" aria-controls="painel-simulacao" onclick="abrirTabAssistente('simulacao', this)">Simulação</button>
+          <button class="assistente-tab" id="tab-simulacao" role="tab" aria-selected="false" aria-controls="painel-simulacao" onclick="abrirTabAssistente('simulacao', this)">Próximos meses</button>
           <button class="assistente-tab" id="tab-chat" role="tab" aria-selected="false" aria-controls="painel-chat" onclick="abrirTabAssistente('chat', this)">Chat IA</button>
         </div>
 
         <!-- VISAO GERAL -->
         <div class="assistente-painel ativo" id="painel-visao" role="tabpanel" aria-labelledby="tab-visao">
-          <div class="assistente-secao">
-            <h3><i data-lucide="zap" class="icon icon-sm"></i> Indicadores</h3>
-            <div class="indicadores-grid" id="assistente-indicadores">
-              <div class="indicador-card destaque skeleton-card" style="grid-column:1/-1;height:72px"></div>
-              <div class="indicador-card skeleton-card" style="height:80px"></div>
-              <div class="indicador-card skeleton-card" style="height:80px"></div>
-            </div>
+          <!-- 1. Sobra do mes, em frase -->
+          <div class="assistente-secao" id="visao-sobra">
+            <div class="skeleton-card" style="height:120px"></div>
           </div>
 
+          <!-- 2. Quando as parcelas acabam -->
+          <div class="assistente-secao" id="visao-fim"></div>
+
+          <!-- 3. Um proximo passo -->
           <div class="assistente-secao">
-            <h3><i data-lucide="list-checks" class="icon icon-sm"></i> Plano de ação</h3>
+            <h3><i data-lucide="list-checks" class="icon icon-sm"></i> Próximo passo</h3>
             <div class="assistente-acoes" id="assistente-acoes"></div>
           </div>
 
-          <details class="assistente-detalhes">
-            <summary>Ver análises detalhadas</summary>
-          <div class="assistente-secao">
-            <h3><i data-lucide="lightbulb" class="icon icon-sm"></i> Insights da IA</h3>
-            <div class="insight-lista" id="assistente-insights">
-              <div class="skeleton-card" style="height:60px"></div>
-              <div class="skeleton-card" style="height:60px"></div>
-            </div>
-          </div>
+          <!-- 4. Gasto do dia, como apoio -->
+          <div id="visao-gastodia" style="margin-bottom:16px"></div>
 
+          <!-- 5. Reserva de emergencia -->
           <div class="assistente-secao">
-            <h3><i data-lucide="shield" class="icon icon-sm"></i> Reserva de Emergência</h3>
+            <h3><i data-lucide="shield" class="icon icon-sm"></i> Reserva de emergência</h3>
             <div class="card" id="assistente-reserva"></div>
           </div>
 
+          <!-- 6. Ver as contas -->
+          <details class="assistente-detalhes">
+            <summary>Ver as contas</summary>
           <div class="assistente-secao">
-            <h3><i data-lucide="trending-up" class="icon icon-sm"></i> Projeção 6 Meses</h3>
-            <div style="background:var(--bg-card);border-radius:18px;border:1px solid var(--border-light);padding:15px;height:200px">
-              <canvas id="graficoProjecao"></canvas>
-            </div>
+            <div class="indicadores-grid" id="assistente-indicadores"></div>
+          </div>
+          <div class="assistente-secao">
+            <h3><i data-lucide="lightbulb" class="icon icon-sm"></i> Para você</h3>
+            <div class="insight-lista" id="assistente-insights"></div>
           </div>
           </details>
         </div>
 
         <!-- ORCAMENTO -->
         <div class="assistente-painel" id="painel-orcamento" role="tabpanel" aria-labelledby="tab-orcamento">
+          <!-- Resumo que acompanha a rolagem e atualiza ao digitar -->
+          <div id="orcamento-resumo" style="position:sticky;top:0;z-index:4;background:var(--bg-card);border:1px solid var(--border-light);border-radius:12px;padding:10px 14px;margin-bottom:14px;font-size:13px"></div>
+
           <div class="assistente-secao">
             <h3><i data-lucide="wallet" class="icon icon-sm"></i> Renda</h3>
             <div class="renda-form">
               <div class="form-group" style="margin:0">
                 <label>Renda mensal (R$)</label>
-                <input type="number" id="rendaMensal" placeholder="0,00" oninput="salvarOrcamento()">
+                <input type="number" inputmode="decimal" id="rendaMensal" placeholder="0,00" oninput="salvarOrcamento()">
               </div>
               <div id="rendas-extras-lista"></div>
               <button class="btn-outline" style="font-size:13px;padding:8px" onclick="adicionarRendaExtra()">
@@ -713,69 +720,46 @@
             <div class="renda-form">
               <div class="form-group" style="margin:0">
                 <label>Meta de economia mensal (R$)</label>
-                <input type="number" id="metaEconomia" placeholder="0,00" oninput="salvarOrcamento()">
+                <input type="number" inputmode="decimal" id="metaEconomia" placeholder="0,00" oninput="salvarOrcamento()">
+                <small class="campo-ajuda" id="metaSugestao"></small>
               </div>
               <div class="form-group" style="margin:0">
                 <label>Reserva de emergência desejada (R$)</label>
-                <input type="number" id="metaReserva" placeholder="0,00" oninput="salvarOrcamento()">
+                <input type="number" inputmode="decimal" id="metaReserva" placeholder="0,00" oninput="salvarOrcamento()">
               </div>
               <div class="form-group" style="margin:0">
                 <label>Reserva atual acumulada (R$)</label>
-                <input type="number" id="reservaAtual" placeholder="0,00" oninput="salvarOrcamento()">
-              </div>
-            </div>
-          </div>
-
-          <div class="assistente-secao">
-            <h3><i data-lucide="bell" class="icon icon-sm"></i> Lembretes</h3>
-            <div class="renda-form">
-              <div class="form-group" style="margin:0">
-                <label for="antecedenciaNotificacao">Avisar antes do vencimento</label>
-                <select id="antecedenciaNotificacao" onchange="salvarPreferenciaNotificacao(this.value)">
-                  <option value="0">No dia do vencimento</option>
-                  <option value="1">1 dia antes</option>
-                  <option value="3">3 dias antes</option>
-                  <option value="7">7 dias antes</option>
-                </select>
-                <small class="campo-ajuda">Parcelas atrasadas continuam gerando alerta até serem pagas.</small>
+                <input type="number" inputmode="decimal" id="reservaAtual" placeholder="0,00" oninput="salvarOrcamento()">
               </div>
             </div>
           </div>
         </div>
 
-        <!-- SIMULACAO -->
+        <!-- PROXIMOS MESES -->
         <div class="assistente-painel" id="painel-simulacao" role="tabpanel" aria-labelledby="tab-simulacao">
 
-          <!-- Resumo geral -->
+          <!-- Calendario mes a mes das parcelas + sobra -->
           <div class="assistente-secao">
-            <h3><i data-lucide="calculator" class="icon icon-sm"></i> Visão Geral</h3>
+            <h3><i data-lucide="calendar-days" class="icon icon-sm"></i> Mês a mês</h3>
             <div id="simulacao-resultado">
-              <p style="color:var(--text-secondary);font-size:14px">Preencha o orcamento para ver a simulacao.</p>
+              <p style="color:var(--text-secondary);font-size:14px">Preencha o orçamento para ver os próximos meses.</p>
             </div>
           </div>
 
-          <!-- Ranking de dividas -->
+          <!-- Quanto da para juntar -->
           <div class="assistente-secao">
-            <h3><i data-lucide="list-ordered" class="icon icon-sm"></i> Suas Dividas</h3>
-            <div id="simulacao-ranking"></div>
-          </div>
-
-          <!-- Estratégia -->
-          <div class="assistente-secao">
-            <h3><i data-lucide="route" class="icon icon-sm"></i> Estratégia de Pagamento</h3>
-            <div style="display:flex;gap:8px;margin-bottom:12px">
-              <button class="filtro-btn ativo" id="btn-avalanche" onclick="selecionarEstrategia('avalanche', this)">Avalanche</button>
-              <button class="filtro-btn" id="btn-bola" onclick="selecionarEstrategia('bola', this)">Bola de Neve</button>
+            <h3><i data-lucide="trending-up" class="icon icon-sm"></i> Quanto você pode juntar</h3>
+            <div style="background:var(--bg-card);border-radius:18px;border:1px solid var(--border-light);padding:15px;height:200px">
+              <canvas id="graficoProjecao"></canvas>
             </div>
-            <div id="simulacao-estrategia"></div>
           </div>
 
-          <!-- Simulador E se -->
+          <!-- E se eu guardar mais -->
           <div class="assistente-secao">
-            <h3><i data-lucide="sliders-horizontal" class="icon icon-sm"></i> E se eu pagar mais?</h3>
+            <h3><i data-lucide="piggy-bank" class="icon icon-sm"></i> E se eu guardar mais?</h3>
             <div class="renda-form">
               <div class="form-group" style="margin:0">
-                <label>Valor extra por mes (R$)</label>
+                <label>Quanto guardar por mês (R$)</label>
                 <input type="range" id="extraQuitacaoSlider" min="0" max="2000" step="50" value="0"
                   oninput="document.getElementById('extraQuitacaoValor').textContent=formatarMoeda(this.value);recalcularSimulacao(this.value)">
                 <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text-secondary);margin-top:4px">
@@ -788,10 +772,10 @@
             <div id="simulacao-extra" style="margin-top:12px"></div>
           </div>
 
-          <!-- Previsao do mes -->
+          <!-- Suas dividas ativas -->
           <div class="assistente-secao">
-            <h3><i data-lucide="calendar" class="icon icon-sm"></i> Previsao do Mes</h3>
-            <div class="card" id="previsao-mes"></div>
+            <h3><i data-lucide="list-ordered" class="icon icon-sm"></i> Suas dívidas</h3>
+            <div id="simulacao-ranking"></div>
           </div>
 
         </div>
@@ -800,22 +784,14 @@
         <div class="assistente-painel" id="painel-chat" role="tabpanel" aria-labelledby="tab-chat">
           <div class="assistente-secao" style="margin-bottom: 8px">
             <h3><i data-lucide="sparkles" class="icon icon-sm"></i> Consultoria com IA</h3>
-            <p style="font-size: 13px; color: var(--text-secondary); margin-bottom: 12px; line-height: 1.45">
-              Converse com a inteligência artificial para receber conselhos e estratégias com base nas suas dívidas cadastradas.
-            </p>
 
-            <div class="chip-perguntas">
-              <button class="chip" type="button" onclick="window.enviarPerguntaChip('O que devo priorizar pagar primeiro?')">O que pagar primeiro?</button>
-              <button class="chip" type="button" onclick="window.enviarPerguntaChip('Como renegociar minhas contas atrasadas?')">Como renegociar?</button>
-              <button class="chip" type="button" onclick="window.enviarPerguntaChip('Como posso acelerar a quitação das minhas parcelas?')">Acelerar quitação?</button>
-              <button class="chip" type="button" onclick="window.enviarPerguntaChip('Como montar minha reserva de emergência?')">Criar reserva?</button>
-            </div>
+            <div class="chip-perguntas" id="chatPerguntas"></div>
 
             <div class="assistente-chat" id="chatMensagens" role="log" aria-live="polite" aria-label="Conversa com o assistente" style="min-height: 160px; max-height: 380px; overflow-y: auto; padding: 10px 2px; display: flex; flex-direction: column; gap: 10px">
               <div class="chat-mensagem assistente">
                 <div class="chat-avatar"><i data-lucide="bot" class="icon icon-sm"></i></div>
-                <div class="chat-balao">
-                  Olá! Sou seu assistente financeiro inteligente. Já consigo consultar seus valores e prazos cadastrados. Como posso ajudar você hoje?
+                <div class="chat-balao" id="chatSaudacao">
+                  Oi! Já consigo ver suas parcelas e sua renda. Em que posso ajudar?
                 </div>
               </div>
             </div>
@@ -826,6 +802,7 @@
                 <i data-lucide="send" class="icon icon-sm"></i>
               </button>
             </form>
+            <small class="campo-ajuda" style="display:block;margin-top:6px">Seus valores são enviados para gerar a resposta. Não substitui um consultor.</small>
           </div>
         </div>
       </div>
