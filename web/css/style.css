@@ -3192,6 +3192,147 @@ input[type="range"]::-webkit-slider-thumb {
   position: relative;
 }
 
+/* SELETOR DE MÊS */
+.relatorio-seletor-mes {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding: 6px;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  background: var(--bg-card);
+  box-shadow: var(--shadow);
+}
+
+.seletor-mes-seta {
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.seletor-mes-seta:hover:not(:disabled) {
+  background: var(--hover-bg);
+}
+
+.seletor-mes-seta:disabled {
+  color: var(--text-secondary);
+  opacity: 0.35;
+  cursor: default;
+}
+
+.seletor-mes-label {
+  flex: 1;
+  min-height: 44px;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+}
+
+.seletor-mes-label:hover {
+  background: var(--hover-bg);
+}
+
+/* RESUMO DO MÊS */
+.relatorio-resumo-mes {
+  padding: 16px;
+  margin-bottom: 14px;
+}
+
+.resumo-mes-frase {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: -0.02em;
+}
+
+.resumo-mes-detalhe {
+  margin-top: 8px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+/* BARRAS POR CATEGORIA */
+.relatorio-catbars {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.catbar-topo {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 5px;
+}
+
+.catbar-nome {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  min-width: 0;
+}
+
+.catbar-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.catbar-valor {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.catbar-trilha {
+  height: 8px;
+  border-radius: var(--radius-pill);
+  background: var(--border-light);
+  overflow: hidden;
+}
+
+.catbar-preenchimento {
+  height: 100%;
+  border-radius: var(--radius-pill);
+  transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* MAIORES CONTAS */
+.relatorio-maiores {
+  margin-top: 18px;
+}
+
+.relatorio-maiores-titulo {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+}
+
 .relatorio-foco {
   display: flex;
   align-items: center;

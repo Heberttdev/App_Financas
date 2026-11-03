@@ -527,112 +527,45 @@
           </button>
         </div>
 
-        <!-- CONTROLES UNIFICADOS -->
-        <div class="relatorio-controles">
-          <div class="filtros-relatorio" role="group" aria-label="Filtrar por status">
-            <button
-              type="button"
-              class="filtro-btn ativo"
-              data-filtro="todas"
-              onclick="filtrarRelatorio('todas', this)"
-            >Todas</button>
-            <button
-              type="button"
-              class="filtro-btn"
-              data-filtro="pendente"
-              onclick="filtrarRelatorio('pendente', this)"
-            >Pendentes</button>
-            <button
-              type="button"
-              class="filtro-btn"
-              data-filtro="pago"
-              onclick="filtrarRelatorio('pago', this)"
-            >Pagas</button>
-          </div>
-
-          <div class="filtro-periodo">
-            <div class="filtro-periodo-input">
-              <i data-lucide="calendar" class="icon icon-sm"></i>
-              <input
-                type="month"
-                id="filtroMes"
-                onchange="aplicarFiltroPeriodo()"
-                aria-label="Filtrar por mês"
-              />
-            </div>
-            <button type="button" class="btn-limpar-periodo" onclick="limparFiltroPeriodo()" title="Limpar período" aria-label="Limpar filtro de período">
-              <i data-lucide="x" class="icon icon-sm"></i>
-            </button>
-          </div>
+        <!-- SELETOR DE MÊS -->
+        <div class="relatorio-seletor-mes" role="group" aria-label="Selecionar mês">
+          <button type="button" class="seletor-mes-seta" id="mesAnterior" onclick="mudarMesRelatorio(-1)" aria-label="Mês anterior">
+            <i data-lucide="chevron-left" class="icon"></i>
+          </button>
+          <button type="button" class="seletor-mes-label" id="mesLabel" onclick="alternarMesTudo()" aria-label="Alternar entre o mês e o total (Tudo)">Mês</button>
+          <button type="button" class="seletor-mes-seta" id="mesProximo" onclick="mudarMesRelatorio(1)" aria-label="Próximo mês">
+            <i data-lucide="chevron-right" class="icon"></i>
+          </button>
         </div>
 
-        <!-- PRÓXIMO FOCO -->
-        <div class="relatorio-foco" id="relatorioFoco"></div>
-
-        <!-- PAINEL DE MÉTRICAS (2 COLUNAS) -->
-        <div class="relatorio-metricas-grid">
-          <div class="metrica-card pendente">
-            <div class="metrica-header">
-              <span class="metrica-dot"></span>
-              <span class="metrica-label">Pendente</span>
-            </div>
-            <div class="metrica-valor" id="relPendente">R$ 0,00</div>
-          </div>
-
-          <div class="metrica-card pago">
-            <div class="metrica-header">
-              <span class="metrica-dot"></span>
-              <span class="metrica-label">Pago</span>
-            </div>
-            <div class="metrica-valor" id="relPago">R$ 0,00</div>
-          </div>
-        </div>
-
-        <!-- BARRA DE QUITAÇÃO INTEGRADA -->
-        <div class="relatorio-progresso-card">
-          <div class="progresso-header">
-            <span class="progresso-status" id="textoQuitacao">0% quitado</span>
-            <span class="progresso-detalhe">
-              <span id="relParcelas">0</span> parcelas • <span id="relPercentual">0%</span>
-            </span>
-          </div>
+        <!-- RESUMO DO MÊS -->
+        <div class="relatorio-resumo-mes card">
+          <div class="resumo-mes-frase" id="resumoMesFrase">R$ 0,00 em 0 parcelas</div>
           <div class="progresso-barra">
-            <div
-              class="progresso-preenchimento"
-              id="barraQuitacao"
-              style="width: 0%"
-            ></div>
+            <div class="progresso-preenchimento" id="barraQuitacao" style="width: 0%"></div>
           </div>
+          <div class="resumo-mes-detalhe" id="resumoMesDetalhe">R$ 0,00 pago · R$ 0,00 falta</div>
         </div>
 
-        <canvas id="graficoDividas" style="display:none"></canvas>
-
-        <!-- GRÁFICO DE CATEGORIAS EM DESTAQUE -->
-          <div class="card grafico-categorias-card">
+        <!-- MÊS A MÊS -->
+        <div class="card grafico-categorias-card">
           <div class="grafico-card-header">
-            <h3><i data-lucide="chart-pie" class="icon icon-sm"></i> Distribuição por Categoria</h3>
+            <h3><i data-lucide="bar-chart-3" class="icon icon-sm"></i> Mês a mês</h3>
           </div>
           <div class="grafico-wrapper">
-            <canvas id="graficoCategorias"></canvas>
+            <canvas id="graficoMensal"></canvas>
           </div>
         </div>
 
-        <details class="relatorio-bloco-relacionado">
-          <summary>Ver ranking das dívidas</summary>
-          <div id="rankingDividas"></div>
-        </details>
-
-        <details class="relatorio-bloco-relacionado" open>
-        <summary class="relatorio-detalhamento-cabecalho">
-          <span class="relatorio-detalhamento-titulo">
-            <span class="eyebrow">LISTA</span>
-            <strong><i data-lucide="list-checks" class="icon icon-sm"></i> Detalhamento</strong>
-          </span>
-          <span id="relatorioResultado" class="relatorio-ajuda"></span>
-        </summary>
-
-        <div class="lista-dividas" id="listaRelatorio"></div>
-        </details>
+        <!-- CATEGORIAS + MAIORES CONTAS -->
+        <div class="card grafico-categorias-card">
+          <div class="grafico-card-header">
+            <h3><i data-lucide="chart-pie" class="icon icon-sm"></i> Por categoria</h3>
+          </div>
+          <div class="relatorio-catbars" id="relatorioCatbars"></div>
+          <div class="relatorio-maiores" id="relatorioMaiores"></div>
+          <button class="btn-ranking-todas" type="button" onclick="navegar('dividas')">Ver todas em Dívidas</button>
+        </div>
       </div>
 
       <div id="assistenteScreen" class="screen">

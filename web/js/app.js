@@ -28,13 +28,11 @@
           });
 
         let currentUser = null,
-          dividas = [],
-          filtroAtualRelatorio = "todas";
+          dividas = [];
         window.getCurrentUser = () => currentUser;
         window.getDividas = () => dividas;
-        let mesFiltroRelatorio = null,
-          graficoInstance = null,
-          graficoCategoriasInstance = null;
+        let mesSelecionadoRelatorio = "__init__",
+          graficoInstance = null;
         let listenersAtivos = [],
           formularioModificado = false;
         let filtroDividasAtual = "todas";
@@ -2035,340 +2033,288 @@
               ?.setAttribute("aria-expanded", String(expandido));
           }
         };
-        // Relatórios
-        window.aplicarFiltroPeriodo = () => {
-          mesFiltroRelatorio =
-            document.getElementById("filtroMes").value || null;
-          const b = document.querySelector(
-            `.filtro-btn[data-filtro="${filtroAtualRelatorio}"]`,
+        // Relatórios — tela enxuta: seletor de mês, resumo, mês a mês, categorias
+        const nomesMesExt = [
+          "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
+          "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro",
+        ];
+        const nomesMesAbrev = [
+          "jan", "fev", "mar", "abr", "mai", "jun",
+          "jul", "ago", "set", "out", "nov", "dez",
+        ];
+
+        const coresPorCategoria = {
+          cartao: "#4E79A7", emprestimo: "#E15759", boleto: "#B07AA1",
+          assinatura: "#76B7B2", educacao: "#59A14F", saude: "#FF9DA7",
+          moradia: "#9C755F", transporte: "#F28E2B", alimentacao: "#EDC948",
+          lazer: "#8CD17D", imposto: "#BAB0AC", outros: "#79706E",
+        };
+        const nomesPorCategoria = {
+          cartao: "Cartão", emprestimo: "Empréstimo", boleto: "Boleto",
+          assinatura: "Assinatura", educacao: "Educação", saude: "Saúde",
+          moradia: "Moradia", transporte: "Transporte", alimentacao: "Alimentação",
+          lazer: "Lazer", imposto: "Impostos", outros: "Outros",
+        };
+
+        // Mês de referência da parcela: paga pelo mês do pagamento (ou vencimento
+        // se faltar), pendente pelo vencimento.
+        const mesDaParcela = (p) => {
+          const base = p.status === "pago" ? (p.pagoEm || p.vencimento) : p.vencimento;
+          return base ? String(base).substring(0, 7) : null;
+        };
+
+        const mesAtualISO = () => {
+          const d = new Date();
+          return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+        };
+
+        const rotuloMes = (iso) => {
+          if (!iso) return "Tudo";
+          const [a, m] = iso.split("-").map(Number);
+          return `${nomesMesExt[m - 1]} ${a}`;
+        };
+
+        const rangeMeses = () => {
+          const ms = dividas
+            .flatMap((d) => (d.parcelas || []).map(mesDaParcela))
+            .filter(Boolean)
+            .sort();
+          return ms.length ? { min: ms[0], max: ms[ms.length - 1] } : null;
+        };
+
+        // Lista de meses "YYYY-MM" entre min e max, inclusive.
+        const mesesEntre = (min, max) => {
+          const out = [];
+          let [a, m] = min.split("-").map(Number);
+          const [ea, em] = max.split("-").map(Number);
+          while (a < ea || (a === ea && m <= em)) {
+            out.push(`${a}-${String(m).padStart(2, "0")}`);
+            m++;
+            if (m > 12) { m = 1; a++; }
+          }
+          return out;
+        };
+
+        window.mudarMesRelatorio = (delta) => {
+          let base = mesSelecionadoRelatorio || mesAtualISO();
+          let [a, m] = base.split("-").map(Number);
+          m += delta;
+          while (m > 12) { m -= 12; a++; }
+          while (m < 1) { m += 12; a--; }
+          let alvo = `${a}-${String(m).padStart(2, "0")}`;
+          const r = rangeMeses();
+          if (r) {
+            if (alvo < r.min) alvo = r.min;
+            if (alvo > r.max) alvo = r.max;
+          }
+          mesSelecionadoRelatorio = alvo;
+          renderRelatorios();
+        };
+
+        window.alternarMesTudo = () => {
+          mesSelecionadoRelatorio = mesSelecionadoRelatorio ? null : mesAtualISO();
+          renderRelatorios();
+        };
+
+        window.renderRelatorios = () => {
+          if (mesSelecionadoRelatorio === "__init__")
+            mesSelecionadoRelatorio = mesAtualISO();
+
+          const todas = dividas.flatMap((d) =>
+            (d.parcelas || []).map((p) => ({
+              divida: d,
+              parcela: p,
+              mes: mesDaParcela(p),
+            })),
           );
-          window.filtrarRelatorio(filtroAtualRelatorio, b);
-        };
 
-        window.limparFiltroPeriodo = () => {
-          document.getElementById("filtroMes").value = "";
-          mesFiltroRelatorio = null;
-          aplicarFiltroPeriodo();
-        };
+          document.getElementById("mesLabel").textContent =
+            rotuloMes(mesSelecionadoRelatorio);
 
-        window.filtrarRelatorio = (f, b) => {
-          filtroAtualRelatorio = f;
-          document
-            .querySelectorAll(".filtros-relatorio .filtro-btn")
-            .forEach((x) => x.classList.remove("ativo"));
-          if (b) b.classList.add("ativo");
-
-          let l = dividas
-            .map((d) => ({
-              ...d,
-              parcelas: (d.parcelas || []).filter((p) => {
-                if (f !== "todas" && p.status !== f) return false;
-                if (
-                  mesFiltroRelatorio &&
-                  p.vencimento?.substring(0, 7) !== mesFiltroRelatorio
-                )
-                  return false;
-                return true;
-              }),
-            }))
-            .filter((d) => d.parcelas.length > 0);
-
-          const c = document.getElementById("listaRelatorio");
-          const resultado = document.getElementById("relatorioResultado");
-          if (resultado) {
-            resultado.textContent = `${l.length} ${l.length === 1 ? "dívida" : "dívidas"}`;
+          // Setas: desabilitadas em "Tudo" ou nos extremos do intervalo.
+          const r = rangeMeses();
+          const btnAnt = document.getElementById("mesAnterior");
+          const btnProx = document.getElementById("mesProximo");
+          if (btnAnt && btnProx) {
+            const emTudo = !mesSelecionadoRelatorio;
+            btnAnt.disabled = emTudo || (r && mesSelecionadoRelatorio <= r.min);
+            btnProx.disabled = emTudo || (r && mesSelecionadoRelatorio >= r.max);
           }
-          if (!l.length) {
-            c.innerHTML =
-              '<div class="mensagem-vazia"><i data-lucide="search-x" class="icon icon-lg"></i>Nenhuma dívida encontrada para os filtros selecionados.</div>';
-          } else {
-            c.innerHTML = l
-              .map((d) => {
-                const totalVal = d.parcelas.reduce((s, p) => s + (p.valor || 0), 0);
-                const pagasCount = d.parcelas.filter((p) => p.status === "pago").length;
-                return `<div class="divida-card" id="card-relatorio-${escapeHtml(d.id)}">
-                        <div class="divida-cabecalho" role="button" tabindex="0" aria-expanded="false" aria-controls="parcelas-relatorio-${escapeHtml(d.id)}" onclick="window.toggleExpansao(${jsArg(d.id)})" onkeydown="if(event.key === 'Enter' || event.key === ' '){event.preventDefault();window.toggleExpansao(${jsArg(d.id)})}">
-                            <div class="divida-info-col">
-                              <div class="divida-nome-linha">
-                                <span class="nome">${escapeHtml(d.nome)}</span>
-                                ${getCatBadge(d.categoria)}
-                              </div>
-                              <div class="divida-meta-linha">
-                                <span class="divida-meta-texto">${pagasCount}/${d.parcelas.length} pagas no filtro</span>
-                              </div>
-                            </div>
-                            <div class="divida-valor-col">
-                              <span class="valor-destaque">${formatarMoeda(totalVal)}</span>
-                              <div class="divida-status-linha">
-                                <span class="seta-expandir"><i data-lucide="chevron-down" class="icon icon-sm"></i></span>
-                              </div>
-                            </div>
-                        </div>
-                        <div class="parcelas-container" id="parcelas-relatorio-${escapeHtml(d.id)}">
-                            <div class="parcelas-titulo">
-                                <span>Parcelas do filtro</span>
-                                <span>${pagasCount}/${d.parcelas.length} pagas</span>
-                            </div>
-                            ${d.parcelas
-                              .map(
-                                (p) => `<div class="parcela-linha">
-                                <div class="parcela-descricao">
-                                  <span class="parcela-status"><i data-lucide="${p.status === "pago" ? "check-circle" : "circle-dashed"}" class="icon icon-sm"></i></span>
-                                  <span class="parcela-identificacao">
-                                    <strong>${escapeHtml(String(p.numero))}ª parcela</strong>
-                                    <span class="parcela-vencimento">Vence em ${formatarData(p.vencimento)}</span>
-                                    ${p.pagoEm ? `<span class="parcela-historico">Pago: ${formatarDataHora(p.pagoEm)}</span>` : ""}
-                                  </span>
-                                  <strong class="parcela-valor">${formatarMoeda(p.valor || 0)}</strong>
-                                </div>
-                            </div>`,
-                              )
-                              .join("")}
-                        </div>
-                    </div>`;
-              })
-              .join("");
-          }
+
+          const sel = mesSelecionadoRelatorio
+            ? todas.filter((x) => x.mes === mesSelecionadoRelatorio)
+            : todas;
+
+          renderResumoMes(sel);
+          renderGraficoMensal(todas);
+          renderCategorias(sel);
           if (window.lucide) lucide.createIcons();
-          atualizarGrafico(l);
         };
 
-        function atualizarGrafico(d) {
-          let totalParcelas = 0;
-          let parcelasPagas = 0;
+        // Alias: o resto do app ainda chama aplicarFiltroPeriodo ao abrir a tela.
+        window.aplicarFiltroPeriodo = () => window.renderRelatorios();
 
-          d.forEach((x) => {
-            x.parcelas.forEach((p) => {
-              totalParcelas++;
+        function renderResumoMes(sel) {
+          const total = sel.reduce((s, x) => s + (x.parcela.valor || 0), 0);
+          const count = sel.length;
+          const pagas = sel.filter((x) => x.parcela.status === "pago");
+          const valorPago = pagas.reduce((s, x) => s + (x.parcela.valor || 0), 0);
+          const countPagas = pagas.length;
 
-              if (p.status === "pago") {
-                parcelasPagas++;
-              }
-            });
-          });
+          const frase = document.getElementById("resumoMesFrase");
+          const detalhe = document.getElementById("resumoMesDetalhe");
+          const barra = document.getElementById("barraQuitacao");
+          if (!frase || !detalhe || !barra) return;
 
-          const percentual =
-            totalParcelas > 0
-              ? Math.round((parcelasPagas / totalParcelas) * 100)
-              : 0;
+          frase.textContent =
+            `${formatarMoeda(total)} em ${count} ${count === 1 ? "parcela" : "parcelas"}`;
 
-          document.getElementById("barraQuitacao").style.width =
-            percentual + "%";
-
-          // achado 04: deixa claro que esta base e por numero de parcelas
-          document.getElementById("textoQuitacao").textContent =
-            `${parcelasPagas} de ${totalParcelas} parcelas pagas`;
-
-          document.getElementById("relParcelas").textContent = totalParcelas;
-
-          document.getElementById("relPercentual").textContent =
-            percentual + "%";
-
-          // achado 26: o foco precisa dizer qual divida priorizar
-          const proximoFoco = d
-            .flatMap((x) => (x.parcelas || []).map((p) => ({ ...p, nomeDivida: x.nome })))
-            .filter((p) => p.status === "pendente")
-            .sort((a, b) => new Date(a.vencimento) - new Date(b.vencimento))[0];
-          const foco = document.getElementById("relatorioFoco");
-          if (foco) {
-            foco.innerHTML = proximoFoco
-              ? `<div class="relatorio-foco-icone"><i data-lucide="target" class="icon"></i></div>
-                 <div class="relatorio-foco-conteudo"><span class="eyebrow">PRÓXIMO FOCO</span><strong>Priorize ${escapeHtml(proximoFoco.nomeDivida || "")}: ${formatarMoeda(proximoFoco.valor || 0)}</strong><span>Vencimento em ${formatarData(proximoFoco.vencimento)}</span></div>`
-              : `<div class="relatorio-foco-icone"><i data-lucide="circle-check" class="icon"></i></div><div class="relatorio-foco-conteudo"><span class="eyebrow">TUDO EM DIA</span><strong>Nenhuma parcela pendente neste filtro</strong><span>Continue acompanhando seu progresso.</span></div>`;
-            if (window.lucide) lucide.createIcons();
-          }
-
-          const rankingTotal = [...d]
-            .map((x) => ({
-              ...x,
-              valorFiltrado: x.parcelas.reduce((s, p) => s + (p.valor || 0), 0),
-            }))
-            .sort((a, b) => b.valorFiltrado - a.valorFiltrado);
-          const rankingTop = rankingTotal.slice(0, 3);
-          const rankingResto = rankingTotal.slice(3);
-
-          const rankLinha = (x, i) => `
-        <div class="rank-linha">
-            <span class="rank-pos">${i + 1}</span>
-            <span class="rank-nome">${escapeHtml(x.nome)}</span>
-            <strong>${formatarMoeda(x.valorFiltrado || 0)}</strong>
-        </div>`;
-
-          const rankingEl = document.getElementById("rankingDividas");
-          if (!d.length) {
-            rankingEl.innerHTML = "";
+          if (mesSelecionadoRelatorio) {
+            const pct = total > 0 ? Math.round((valorPago / total) * 100) : 0;
+            barra.style.width = pct + "%";
+            const statusPagas =
+              countPagas === 0
+                ? "nenhuma paga ainda"
+                : `${countPagas} de ${count} ${countPagas === 1 ? "paga" : "pagas"}`;
+            detalhe.textContent =
+              `${formatarMoeda(valorPago)} pago · ${formatarMoeda(total - valorPago)} falta · ${statusPagas}`;
           } else {
-          rankingEl.innerHTML = `
-<div class="card" style="margin-bottom:15px">
-
-    <h2>Maiores valores no filtro</h2>
-
-    ${rankingTop.map(rankLinha).join("")}
-
-    ${
-      rankingResto.length
-        ? `<div id="rankingExtra" style="display:none">${rankingResto
-            .map(rankLinha)
-            .join("")}</div>
-        <button class="btn-ranking-todas" type="button" id="btnRankingExtra" onclick="window.toggleRankingExtra()">
-            Ver todas as dívidas (${rankingResto.length})
-        </button>`
-        : ""
-    }
-
-</div>
-`;
+            const pct = count > 0 ? Math.round((countPagas / count) * 100) : 0;
+            barra.style.width = pct + "%";
+            detalhe.textContent =
+              `${countPagas} de ${count} parcelas pagas · ${pct}% pago`;
           }
-          if (window.lucide) lucide.createIcons();
+        }
 
-          const ctx = document
-            .getElementById("graficoDividas")
-            ?.getContext("2d");
+        function renderGraficoMensal(todas) {
+          const ctx = document.getElementById("graficoMensal")?.getContext("2d");
           if (!ctx) return;
           if (graficoInstance) graficoInstance.destroy();
-          let pnd = 0;
-          let pag = 0;
 
-          d.forEach((x) =>
-            x.parcelas.forEach((p) =>
-              p.status === "pago"
-                ? (pag += p.valor || 0)
-                : (pnd += p.valor || 0),
-            ),
-          );
+          const porMes = {};
+          todas.forEach((x) => {
+            if (x.mes) porMes[x.mes] = (porMes[x.mes] || 0) + (x.parcela.valor || 0);
+          });
+          const chaves = Object.keys(porMes).sort();
+          if (!chaves.length) return;
 
-          document.getElementById("relPendente").textContent =
-            formatarMoeda(pnd);
+          const meses = mesesEntre(chaves[0], chaves[chaves.length - 1]);
+          const atual = mesAtualISO();
+          const corPago = corTema("--success");
+          const corPagar = corTema("--danger");
+          const corSel = corTema("--primary");
 
-          document.getElementById("relPago").textContent = formatarMoeda(pag);
-
-          // achado 20: resumo acessivel do grafico
-          const canvasDiv = document.getElementById("graficoDividas");
-          if (canvasDiv) {
-            canvasDiv.setAttribute("role", "img");
-            canvasDiv.setAttribute(
-              "aria-label",
-              `Gráfico de dívidas: ${formatarMoeda(pnd)} pendentes e ${formatarMoeda(pag)} pagas.`,
-            );
-          }
-
-          if (window.aplicarTemaGraficos) window.aplicarTemaGraficos();
+          const bg = meses.map((m) => {
+            if (m === mesSelecionadoRelatorio) return corSel;
+            return m < atual ? corPago : "transparent";
+          });
+          const borda = meses.map((m) => {
+            if (m === mesSelecionadoRelatorio) return corSel;
+            return m < atual ? corPago : corPagar;
+          });
 
           aplicarTemaGraficos();
           graficoInstance = new Chart(ctx, {
-            type: "doughnut",
+            type: "bar",
             data: {
-              labels: ["Pendentes", "Pagas"],
-              datasets: [
-                { data: [pnd, pag], backgroundColor: [corTema("--danger"), corTema("--success")], borderColor: corTema("--bg-card") },
-              ],
+              labels: meses.map((m) => nomesMesAbrev[Number(m.split("-")[1]) - 1]),
+              datasets: [{
+                data: meses.map((m) => porMes[m] || 0),
+                backgroundColor: bg,
+                borderColor: borda,
+                borderWidth: 1.5,
+                borderRadius: 6,
+              }],
             },
             options: {
               responsive: true,
               maintainAspectRatio: false,
-              plugins: { legend: { position: "bottom" } },
+              onClick: (e, els) => {
+                if (els.length) {
+                  mesSelecionadoRelatorio = meses[els[0].index];
+                  renderRelatorios();
+                }
+              },
+              plugins: {
+                legend: { display: false },
+                tooltip: { callbacks: { label: (it) => formatarMoeda(it.raw) } },
+              },
+              scales: {
+                y: { ticks: { callback: (v) => "R$ " + v } },
+              },
             },
           });
 
-          atualizarGraficoCategorias(d);
+          const resumo = meses
+            .map((m) => `${rotuloMes(m)}: ${formatarMoeda(porMes[m] || 0)}`)
+            .join("; ");
+          const canvas = document.getElementById("graficoMensal");
+          canvas.setAttribute("role", "img");
+          canvas.setAttribute("aria-label", `Pago e a pagar mês a mês. ${resumo}.`);
         }
 
-        window.toggleRankingExtra = () => {
-          const box = document.getElementById("rankingExtra");
-          const btn = document.getElementById("btnRankingExtra");
-          if (!box) return;
-          const aberto = box.style.display !== "none";
-          box.style.display = aberto ? "none" : "";
-          const total = box.children.length;
-          if (btn) btn.textContent = aberto ? `Ver todas as dívidas (${total})` : "Mostrar menos";
-        };
+        function renderCategorias(sel) {
+          const catEl = document.getElementById("relatorioCatbars");
+          const maioresEl = document.getElementById("relatorioMaiores");
+          if (!catEl || !maioresEl) return;
 
-        function atualizarGraficoCategorias(d) {
-          const ctx = document
-            .getElementById("graficoCategorias")
-            ?.getContext("2d");
-          if (!ctx) return;
-          if (graficoCategoriasInstance) graficoCategoriasInstance.destroy();
-
-          // Paleta categórica equilibrada (Tableau 10): uma cor distinta por categoria
-          const coresPorCategoria = {
-            cartao: "#4E79A7",
-            emprestimo: "#E15759",
-            boleto: "#B07AA1",
-            assinatura: "#76B7B2",
-            educacao: "#59A14F",
-            saude: "#FF9DA7",
-            moradia: "#9C755F",
-            transporte: "#F28E2B",
-            alimentacao: "#EDC948",
-            lazer: "#8CD17D",
-            imposto: "#BAB0AC",
-            outros: "#79706E",
-          };
-
-          const nomesPorCategoria = {
-            cartao: "Cartão",
-            emprestimo: "Empréstimo",
-            boleto: "Boleto",
-            assinatura: "Assinatura",
-            educacao: "Educação",
-            saude: "Saúde",
-            moradia: "Moradia",
-            transporte: "Transporte",
-            alimentacao: "Alimentação",
-            lazer: "Lazer",
-            imposto: "Impostos",
-            outros: "Outros",
-          };
-
-          const totaisPorCategoria = {};
-          d.forEach((divida) => {
-            const cat = divida.categoria || "outros";
-            totaisPorCategoria[cat] =
-              (totaisPorCategoria[cat] || 0) + (divida.valorTotal || 0);
-          });
-
-          const categoriasComValor = Object.keys(totaisPorCategoria).filter(
-            (cat) => totaisPorCategoria[cat] > 0,
-          );
-
-          if (!categoriasComValor.length) return;
-
-          // achado 20: resumo acessivel do grafico de categorias
-          const canvasCat = document.getElementById("graficoCategorias");
-          if (canvasCat) {
-            const resumoCat = categoriasComValor
-              .map((cat) => `${nomesPorCategoria[cat] || cat}: ${formatarMoeda(totaisPorCategoria[cat])}`)
-              .join("; ");
-            canvasCat.setAttribute("role", "img");
-            canvasCat.setAttribute("aria-label", `Dívidas por categoria. ${resumoCat}.`);
+          if (!sel.length) {
+            catEl.innerHTML =
+              '<div class="mensagem-vazia"><i data-lucide="search-x" class="icon icon-lg"></i>Nenhuma parcela neste mês.</div>';
+            maioresEl.innerHTML = "";
+            return;
           }
 
-          if (window.aplicarTemaGraficos) window.aplicarTemaGraficos();
-
-          aplicarTemaGraficos();
-          graficoCategoriasInstance = new Chart(ctx, {
-            type: "pie",
-            data: {
-              labels: categoriasComValor.map(
-                (cat) => nomesPorCategoria[cat] || cat,
-              ),
-              datasets: [
-                {
-                  data: categoriasComValor.map((cat) => totaisPorCategoria[cat]),
-                  backgroundColor: categoriasComValor.map(
-                    (cat) => coresPorCategoria[cat] || "#999",
-                  ),
-                  borderColor: corTema("--bg-card"),
-                },
-              ],
-            },
-            options: {
-              responsive: true,
-              maintainAspectRatio: false,
-              plugins: { legend: { position: "bottom", labels: { boxWidth: 12 } } },
-            },
+          const totais = {};
+          sel.forEach((x) => {
+            const cat = x.divida.categoria || "outros";
+            totais[cat] = (totais[cat] || 0) + (x.parcela.valor || 0);
           });
+          const cats = Object.keys(totais)
+            .filter((c) => totais[c] > 0)
+            .sort((a, b) => totais[b] - totais[a]);
+          const totalGeral = cats.reduce((s, c) => s + totais[c], 0);
+
+          catEl.innerHTML = cats
+            .map((c) => {
+              const cor = coresPorCategoria[c] || "#999";
+              const pct = totalGeral > 0 ? Math.round((totais[c] / totalGeral) * 100) : 0;
+              return `<div class="catbar-linha">
+                  <div class="catbar-topo">
+                    <span class="catbar-nome"><span class="catbar-dot" style="background:${cor}"></span>${escapeHtml(nomesPorCategoria[c] || c)}</span>
+                    <span class="catbar-valor">${formatarMoeda(totais[c])} · ${pct}%</span>
+                  </div>
+                  <div class="catbar-trilha"><div class="catbar-preenchimento" style="width:${pct}%;background:${cor}"></div></div>
+                </div>`;
+            })
+            .join("");
+
+          // Maiores contas do mês (soma das parcelas do recorte, por dívida).
+          const porDivida = {};
+          sel.forEach((x) => {
+            const id = x.divida.id;
+            if (!porDivida[id])
+              porDivida[id] = { nome: x.divida.nome, valor: 0 };
+            porDivida[id].valor += x.parcela.valor || 0;
+          });
+          const maiores = Object.values(porDivida)
+            .sort((a, b) => b.valor - a.valor)
+            .slice(0, 3);
+
+          const titulo = mesSelecionadoRelatorio
+            ? `Maiores contas de ${nomesMesExt[Number(mesSelecionadoRelatorio.split("-")[1]) - 1].toLowerCase()}`
+            : "Maiores contas";
+          maioresEl.innerHTML =
+            `<div class="relatorio-maiores-titulo">${titulo}</div>` +
+            maiores
+              .map(
+                (x, i) => `<div class="rank-linha">
+                  <span class="rank-pos">${i + 1}</span>
+                  <span class="rank-nome">${escapeHtml(x.nome)}</span>
+                  <strong>${formatarMoeda(x.valor || 0)}</strong>
+                </div>`,
+              )
+              .join("");
         }
 
         // Modal Recuperação
