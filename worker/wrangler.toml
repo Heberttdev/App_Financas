@@ -1,5 +1,5 @@
 name = "groq-proxy"
-main = "groq-proxy.js"
+main = "worker.js"
 compatibility_date = "2025-01-01"
 workers_dev = true
 # Mantém variáveis criadas pelo dashboard; o secret GROQ_API_KEY já persiste entre deploys
