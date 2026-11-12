@@ -3725,3 +3725,84 @@ input[type="range"]::-webkit-slider-thumb {
     height: 40px;
   }
 }
+
+/* valor total como informacao secundaria no card */
+.valor-total-sec {
+  display: block;
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin-top: 2px;
+  line-height: 1.2;
+}
+
+/* parcelas separadas por ano */
+.parcelas-ano + .parcelas-ano {
+  margin-top: 6px;
+}
+
+.parcelas-ano-titulo {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 0 4px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text);
+  border-bottom: 1px solid var(--border);
+}
+
+/* resumo por ano (dashboard) */
+.ano-resumo {
+  padding: 10px 0 12px;
+  border-bottom: 1px dashed var(--border-light);
+}
+
+.ano-resumo:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.ano-resumo-cab {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 14px;
+  color: var(--text);
+}
+
+.ano-resumo-cab > span {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.ano-tag {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-secondary);
+  margin-left: 4px;
+}
+
+.ano-resumo-valores {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin: 6px 0 8px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.ano-resumo-valores strong {
+  color: var(--text);
+  font-weight: 700;
+}
+
+.ano-resumo-valores .ano-pago strong {
+  color: var(--success);
+}
+
+.ano-resumo-valores .ano-falta strong {
+  color: var(--danger);
+}

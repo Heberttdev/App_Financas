@@ -919,6 +919,19 @@
               <div class="skeleton skeleton-line curta" style="height:14px"></div>`;
           }
 
+          const anual = document.getElementById("resumoAnual");
+          if (anual) {
+            const cardEl = document.getElementById("resumoAnualCard");
+            if (cardEl) cardEl.style.display = "";
+            anual.innerHTML = `
+              <div class="skeleton skeleton-line curta" style="height:14px;margin-bottom:8px"></div>
+              <div class="skeleton skeleton-line larga" style="height:12px;margin-bottom:8px"></div>
+              <div class="skeleton skeleton-line larga" style="height:8px;border-radius:10px;margin-bottom:16px"></div>
+              <div class="skeleton skeleton-line curta" style="height:14px;margin-bottom:8px"></div>
+              <div class="skeleton skeleton-line media" style="height:12px;margin-bottom:8px"></div>
+              <div class="skeleton skeleton-line larga" style="height:8px;border-radius:10px"></div>`;
+          }
+
           const lista = document.getElementById("listaDividas");
           if (lista) {
             const itemSkeleton = `
@@ -1488,6 +1501,139 @@
           atualizarDashboard();
         };
 
+        function mesAtualLocal() {
+          const h = new Date();
+          return `${h.getFullYear()}-${String(h.getMonth() + 1).padStart(2, "0")}`;
+        }
+
+        // Parcela que representa o mes atual: a que vence neste mes;
+        // senao a proxima pendente; senao a ultima.
+        function parcelaDoMes(d) {
+          const ps = d.parcelas || [];
+          const mesAtual = mesAtualLocal();
+          return (
+            ps.find((p) => (p.vencimento || "").slice(0, 7) === mesAtual) ||
+            ps.find((p) => p.status === "pendente") ||
+            ps[ps.length - 1]
+          );
+        }
+
+        function renderValorCard(d) {
+          const ps = d.parcelas || [];
+          if (!d.parcelada || ps.length < 2) {
+            return `<span class="valor-destaque">${formatarMoeda(d.valorTotal || 0)}</span>
+                                <span class="valor-rotulo">valor</span>`;
+          }
+          const p = parcelaDoMes(d);
+          const mesAtual = mesAtualLocal();
+          const rotulo =
+            (p?.vencimento || "").slice(0, 7) === mesAtual
+              ? "parcela do mês"
+              : "próxima parcela";
+          return `<span class="valor-destaque">${formatarMoeda(p?.valor || 0)}</span>
+                                <span class="valor-rotulo">${rotulo}</span>
+                                <span class="valor-total-sec">total ${formatarMoeda(d.valorTotal || 0)}</span>`;
+        }
+
+        function renderParcelaLinha(d, p) {
+          return `<div class="parcela-linha">
+                                <div class="parcela-descricao">
+                                    <span class="parcela-status"><i data-lucide="${p.status === "pago" ? "check-circle" : "circle-dashed"}" class="icon icon-sm"></i></span>
+                                    <span class="parcela-identificacao">
+                                      <strong>${escapeHtml(String(p.numero))}ª parcela</strong>
+                                      <span class="parcela-vencimento">Vence em ${formatarData(p.vencimento)}</span>
+                                    ${p.pagoEm ? `<span class="parcela-historico">Pago: ${formatarDataHora(p.pagoEm)}</span>` : ""}
+                                    </span>
+                                    <strong class="parcela-valor">${formatarMoeda(p.valor || 0)}</strong>
+                                </div>
+                                <button class="parcela-acao btn-sm ${p.status === "pendente" ? "btn-success" : "parcela-reabrir"}"
+    aria-label="${p.status === "pendente" ? "Pagar" : "Reabrir"} parcela ${escapeHtml(String(p.numero))}"
+    onclick="event.stopPropagation();window.pagarParcela(${jsArg(d.id)},${jsArg(p.id)})"
+    >
+    ${
+      p.status === "pendente"
+        ? '<i data-lucide="check-circle" class="icon icon-sm"></i> Pagar'
+        : '<i data-lucide="rotate-ccw" class="icon icon-sm"></i> Reabrir'
+    }</button>
+                            </div>`;
+        }
+
+        // Separa as parcelas por ano (fecha cada ano com subtotal).
+        function renderParcelasPorAno(d) {
+          const ps = d.parcelas || [];
+          const grupos = new Map();
+          ps.forEach((p) => {
+            const ano = (p.vencimento || "").slice(0, 4) || "—";
+            if (!grupos.has(ano)) grupos.set(ano, []);
+            grupos.get(ano).push(p);
+          });
+          if (grupos.size <= 1) {
+            return ps.map((p) => renderParcelaLinha(d, p)).join("");
+          }
+          return [...grupos.entries()]
+            .map(([ano, lista]) => {
+              const totalAno = lista.reduce((s, p) => s + (p.valor || 0), 0);
+              const pagasAno = lista.filter((p) => p.status === "pago").length;
+              return `<div class="parcelas-ano">
+                                <div class="parcelas-ano-titulo">
+                                  <span>${escapeHtml(ano)}</span>
+                                  <span>${pagasAno}/${lista.length} pagas · ${formatarMoeda(totalAno)}</span>
+                                </div>
+                                ${lista.map((p) => renderParcelaLinha(d, p)).join("")}
+                              </div>`;
+            })
+            .join("");
+        }
+
+        // Resumo por ano: soma as parcelas pelo ano de vencimento.
+        function renderResumoAnual() {
+          const box = document.getElementById("resumoAnual");
+          const card = document.getElementById("resumoAnualCard");
+          if (!box) return;
+          const anos = new Map();
+          (dividas || []).forEach((d) => {
+            (d.parcelas || []).forEach((p) => {
+              const ano = (p.vencimento || "").slice(0, 4);
+              if (!ano) return;
+              if (!anos.has(ano))
+                anos.set(ano, { total: 0, pago: 0, qtd: 0, pend: 0 });
+              const r = anos.get(ano);
+              const v = p.valor || 0;
+              r.total += v;
+              r.qtd++;
+              if (p.status === "pago") r.pago += v;
+              else r.pend++;
+            });
+          });
+          if (!anos.size) {
+            if (card) card.style.display = "none";
+            box.innerHTML = "";
+            return;
+          }
+          if (card) card.style.display = "";
+          const anoAtual = String(new Date().getFullYear());
+          box.innerHTML = [...anos.entries()]
+            .sort(([a], [b]) => a.localeCompare(b))
+            .map(([ano, r]) => {
+              const falta = r.total - r.pago;
+              const pct = r.total > 0 ? Math.round((r.pago / r.total) * 100) : 0;
+              const atual = ano === anoAtual;
+              return `<div class="ano-resumo${atual ? " ano-atual" : ""}">
+                <div class="ano-resumo-cab">
+                  <strong>${escapeHtml(ano)}${atual ? ' <span class="ano-tag">este ano</span>' : ""}</strong>
+                  <span>${r.qtd} parcela(s) · ${r.pend} pendente(s)</span>
+                </div>
+                <div class="ano-resumo-valores">
+                  <span>Total <strong>${formatarMoeda(r.total)}</strong></span>
+                  <span class="ano-pago">Pago <strong>${formatarMoeda(r.pago)}</strong></span>
+                  <span class="ano-falta">Falta <strong>${formatarMoeda(falta)}</strong></span>
+                </div>
+                <div class="progresso-barra" role="progressbar" aria-label="Pago em ${escapeHtml(ano)}" aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100"><div class="progresso-preenchimento" style="width:${pct}%"></div></div>
+              </div>`;
+            })
+            .join("");
+        }
+
         function atualizarDashboard() {
           let vencidas = 0;
           let alerta = 0;
@@ -1734,6 +1880,7 @@
         <div class="valor">${qp} pend.</div>
     </div>
 `;
+          renderResumoAnual();
           if (window.lucide) lucide.createIcons();
 
           const termo = (
@@ -1879,8 +2026,7 @@
                             </div>
 
                             <div class="divida-valor-col">
-                                <span class="valor-destaque">${formatarMoeda(d.valorTotal || 0)}</span>
-                                <span class="valor-rotulo">total</span>
+                                ${renderValorCard(d)}
                                 <div class="divida-status-linha">
                                   ${statusVencimento}
                                   <span class="seta-expandir"><i data-lucide="chevron-down" class="icon icon-sm"></i></span>
@@ -1893,30 +2039,7 @@
                                     <span>Parcelas</span>
                                     <span>${pg}/${tot} pagas (${pr.toFixed(0)}%)</span>
                                 </div>
-                                ${(d.parcelas || [])
-                                  .map(
-                                    (p) => `<div class="parcela-linha">
-                                <div class="parcela-descricao">
-                                    <span class="parcela-status"><i data-lucide="${p.status === "pago" ? "check-circle" : "circle-dashed"}" class="icon icon-sm"></i></span>
-                                    <span class="parcela-identificacao">
-                                      <strong>${escapeHtml(String(p.numero))}ª parcela</strong>
-                                      <span class="parcela-vencimento">Vence em ${formatarData(p.vencimento)}</span>
-                                    ${p.pagoEm ? `<span class="parcela-historico">Pago: ${formatarDataHora(p.pagoEm)}</span>` : ""}
-                                    </span>
-                                    <strong class="parcela-valor">${formatarMoeda(p.valor || 0)}</strong>
-                                </div>
-                                <button class="parcela-acao btn-sm ${p.status === "pendente" ? "btn-success" : "parcela-reabrir"}"
-    aria-label="${p.status === "pendente" ? "Pagar" : "Reabrir"} parcela ${escapeHtml(String(p.numero))}"
-    onclick="event.stopPropagation();window.pagarParcela(${jsArg(d.id)},${jsArg(p.id)})"
-    >
-    ${
-      p.status === "pendente"
-        ? '<i data-lucide="check-circle" class="icon icon-sm"></i> Pagar'
-        : '<i data-lucide="rotate-ccw" class="icon icon-sm"></i> Reabrir'
-    }</button>
-                            </div>`,
-                              )
-                              .join("")}
+                                ${renderParcelasPorAno(d)}
 
                                 <div class="divida-rodape-acoes">
                                     <button class="btn-sm btn-outline"
