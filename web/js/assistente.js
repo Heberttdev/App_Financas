@@ -198,25 +198,28 @@
     return max;
   }
 
-  // soma das parcelas que vencem em um mes especifico. No mes atual (ou passado)
-  // entram tambem as ja pagas, pois sairam da renda deste mes; nos futuros, so as pendentes.
+  // soma das parcelas de um mes especifico, com a mesma regra de Relatorios:
+  // paga entra no mes do pagamento (ou do vencimento, se faltar a data);
+  // pendente entra no mes do vencimento.
+  function mesDaParcela(p) {
+    const base = p.status === "pago" ? (p.pagoEm || p.vencimento) : p.vencimento;
+    return base ? String(base).substring(0, 7) : null;
+  }
+
   function parcelasDoMes(ano, mes) {
     const divs = window.getDividas ? window.getDividas() : [];
-    const hoje = new Date();
-    const incluirPagas = ano * 12 + mes <= hoje.getFullYear() * 12 + hoje.getMonth();
+    const alvo = `${ano}-${String(mes + 1).padStart(2, "0")}`;
     let soma = 0;
     divs.forEach((d) =>
       (d.parcelas || []).forEach((p) => {
-        if (!p.vencimento) return;
-        if (p.status !== "pendente" && !(incluirPagas && p.status === "pago")) return;
-        const pv = new Date(p.vencimento + "T00:00:00");
-        if (pv.getFullYear() === ano && pv.getMonth() === mes) soma += p.valor || 0;
+        if (p.status !== "pendente" && p.status !== "pago") return;
+        if (mesDaParcela(p) === alvo) soma += p.valor || 0;
       }),
     );
     return soma;
   }
 
-  // sobra real de um mes especifico = renda - despesas fixas - parcelas que vencem nele - meta
+  // sobra real de um mes especifico = renda - despesas fixas - parcelas do mes - meta
   function sobraDoMes(ano, mes) {
     return totalRenda() - totalDespesasFixas() - parcelasDoMes(ano, mes) - (orcamento.metaEconomia || 0);
   }

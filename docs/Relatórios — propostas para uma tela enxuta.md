@@ -101,7 +101,7 @@ Depois do item 1, conferir com o filtro em novembro: a soma das fatias deve ser 
 
 ## Conferência de 19/11/2026
 
-Sete dos oito itens estão no ar e funcionando; falta acabamento no gráfico mês a mês. Conferido no app publicado em Nov 19, 2026, em tela de celular, só navegando (nada foi pago ou editado). A tela caiu de 6,7 para cerca de 2,5 rolagens.
+Os oito itens estão no ar e funcionando; o acabamento do gráfico mês a mês entrou na 2ª rodada. Conferido no app publicado em Nov 19, 2026, em tela de celular, só navegando (nada foi pago ou editado). A tela caiu de 6,7 para cerca de 2,5 rolagens.
 
 | Nº | Item | Status | O que vi |
 | --- | --- | --- | --- |
@@ -112,10 +112,12 @@ Sete dos oito itens estão no ar e funcionando; falta acabamento no gráfico mê
 | 5 | Juntar resumo e progresso | Feito | "R$ 1.617,52 em 15 parcelas · R$ 1.617,52 pago · R$ 0,00 falta · 15 de 15 pagas" |
 | 6 | Seletor de mês com setas | Feito | Setas, "Tudo" e volta ao mês atual funcionam; botões com `aria-label` |
 | 7 | Pizza vira barras | Feito | 5 categorias com valor e %; ranking virou "Maiores contas de novembro" aberto |
-| 8 | Gráfico mês a mês | Ajustar | Dados certos e o toque numa barra troca o mês; faltam os ajustes abaixo |
+| 8 | Gráfico mês a mês | Feito | Dados certos, toque numa barra troca o mês; legenda, cor e rótulos ajustados na 2ª rodada |
 
 Ajustes que faltam no item 8:
 
 - **Legenda.** O gráfico usa verde (pago), azul (mês escolhido) e contorno vermelho (a pagar), mas `legend.display` está desligado.
 - **Cor dos meses futuros.** O contorno vermelho (`#EE7D74`) parece alerta; o proposto era contorno na mesma cor do pago.
 - **Rótulos de mês.** No celular aparecem só meses alternados e inclinados (jun, ago, out…). Usar `autoSkip: false`, `maxRotation: 0` e fonte menor.
+
+**2ª rodada (19/11/2026, tarde): tudo feito.** Legenda ligada com "Pago", "A pagar" e "Mês escolhido"; meses futuros com contorno verde (`#62BB8C`) em vez de vermelho; todos os 11 meses aparecem retos no eixo (`autoSkip: false`, `maxRotation: 0`, fonte 10).

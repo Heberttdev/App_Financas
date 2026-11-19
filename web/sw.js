@@ -1,4 +1,4 @@
-const CACHE_NAME = 'dividas-v8'; // Versão atualizada para forçar refresh
+const CACHE_NAME = 'dividas-v9';
 
 self.addEventListener('install', event => {
   self.skipWaiting();
@@ -32,18 +32,22 @@ self.addEventListener('fetch', event => {
     return;
   }
   
+  if (event.request.method !== 'GET') return;
+
+  // Rede primeiro: sempre a versão publicada; o cache só entra sem internet.
   event.respondWith(
-    caches.match(event.request).then(response => {
-      return response || fetch(event.request).then(fetchResponse => {
-        // Atualiza o cache com a nova versão
-        if (event.request.method === 'GET' && fetchResponse.status === 200) {
+    fetch(event.request)
+      .then(fetchResponse => {
+        if (fetchResponse.status === 200 && event.request.url.startsWith(self.location.origin)) {
           const responseClone = fetchResponse.clone();
-          caches.open(CACHE_NAME).then(cache => {
-            cache.put(event.request, responseClone);
-          });
+          caches.open(CACHE_NAME).then(cache => cache.put(event.request, responseClone));
         }
         return fetchResponse;
-      });
-    })
+      })
+      .catch(() =>
+        caches.match(event.request).then(response =>
+          response || (event.request.mode === 'navigate' ? caches.match('/index.html') : Response.error())
+        )
+      )
   );
 });

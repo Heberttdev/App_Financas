@@ -138,20 +138,20 @@ Depois do item 2, conferir na Visão Geral: a sobra de novembro deve mostrar R$ 
 
 ## Conferência de 19/11/2026
 
-Sete dos onze itens estão prontos. O que falta se resume a um erro: o mês atual só conta as parcelas pendentes, e as de novembro já foram todas pagas. Conferido no app publicado em 19/11/2026, em tela de celular, só navegando (nada foi pago ou editado).
+Os onze itens estão prontos depois da 2ª rodada (detalhes no fim). Na 1ª rodada o erro principal era o mês atual contar só as parcelas pendentes; foi corrigido. Conferido no app publicado em 19/11/2026, em tela de celular, só navegando (nada foi pago ou editado).
 
 | Nº | Item | Status | O que vi |
 | --- | --- | --- | --- |
 | 1 | Prazo real das parcelas | Feito | "Suas parcelas terminam em 10 de abril"; "9 meses" saiu |
 | 2 | Vincular a Escola | Feito | Despesas fixas R$ 0,00; "5 despesa(s) já contada(s) nas dívidas" |
 | 3 | Eixo do gráfico | Feito | R$ 2.000 a R$ 10.000, sem rótulos repetidos |
-| 4 | Projeção por mês | Ajustar | Calcula mês a mês, mas novembro entra como R$ 2.156,00 de sobra (ajuste A) |
+| 4 | Projeção por mês | Feito | Calcula mês a mês, mas novembro entra como R$ 2.156,00 de sobra (ajuste A) |
 | 5 | Tirar o "Gastado" | Feito | Não aparece mais na tela nem no código |
 | 6 | Limite do controle | Feito | "E se eu guardar mais?" vai de R$ 0 a R$ 300,00 |
-| 7 | Textos dos insights | Ajustar | "Para você", sem "até 20%" e sem "renegociar ou eliminar"; falta o acento em "Previsao" (`assistente.js` 483) |
-| 8 | Nova Visão Geral | Ajustar | Layout em frases no ar; sobra de novembro usa parcelas de dezembro (ajuste A) e os meses não cabem (ajuste C) |
+| 7 | Textos dos insights | Feito | "Para você", sem "até 20%" e sem "renegociar ou eliminar"; falta o acento em "Previsao" (`assistente.js` 483) |
+| 8 | Nova Visão Geral | Feito | Layout em frases no ar; sobra de novembro usa parcelas de dezembro (ajuste A) e os meses não cabem (ajuste C) |
 | 9 | Orçamento com resumo ao vivo | Feito | Resumo no topo, duplicatas agrupadas, sugestão de meta, lembretes fora |
-| 10 | Próximos meses | Ajustar | Calendário no ar; novembro aparece "sem parcelas" e os meses como "Novembro De 26" |
+| 10 | Próximos meses | Feito | Calendário no ar; novembro aparece "sem parcelas" e os meses como "Novembro De 26" |
 | 11 | Chat | Feito | Perguntas a partir dos dados, uma saudação, aviso de dados, `#chatMensagens` como log |
 
 Ajustes que faltam:
@@ -160,3 +160,11 @@ Ajustes que faltam:
 - **B · Título da projeção.** "Quanto você pode juntar" supõe que toda a sobra vira poupança. Dizer isso no título: "Se guardar toda a sobra".
 - **C · Meses em "Suas parcelas terminam".** No celular "R$ 1.856,33" fica cortado e aparece uma barra de rolagem branca no tema escuro. Mostrar 3 meses e "+2", ou quebrar em duas linhas.
 - **D · Textos.** "Novembro De 26" → "Novembro 2026"; "Previsao" → "Previsão"; "5 despesa(s) já contada(s)" → "5 despesas já contadas"; "Despesas fixas R$ 0,00 · 5 categorias" → "Nenhuma fora das dívidas"; o próximo passo da reserva ainda diz "antes de buscar maior rentabilidade".
+
+**2ª rodada (19/11/2026, tarde): A, C e D feitos; B pela metade.**
+
+- **A:** Visão Geral e Próximos meses agora concordam: novembro com R$ 1.479,52 em parcelas e sobra de R$ 676,48. A projeção começa em R$ 566,48 (reserva R$ 90,00 + livre R$ 476,48) e o diário ficou em R$ 39,71.
+- **C:** Mostra Nov., Dez., Jan. e "+3"; nada cortado nem barra de rolagem.
+- **D:** "Novembro 2026", "Previsão", "Nenhuma fora das dívidas" e "Separe cerca de R$ 50,00 este mês para a reserva".
+- **B:** "Se guardar toda a sobra" entrou só no `aria-label` do gráfico; o título visível continua "Quanto você pode juntar".
+- **Para decidir:** o Assistente conta novembro pelo vencimento (R$ 1.479,52, 14 parcelas) e Relatórios pelo mês do pagamento (R$ 1.617,52, 15). A diferença é uma parcela da Estácio de R$ 138,00, vencida em 16/10 e paga em 12/11. As duas regras fazem sentido; vale escolher uma e usar nas duas telas.
