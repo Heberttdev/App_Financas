@@ -2324,7 +2324,6 @@
           const meses = mesesEntre(chaves[0], chaves[chaves.length - 1]);
           const atual = mesAtualISO();
           const corPago = corTema("--success");
-          const corPagar = corTema("--danger");
           const corSel = corTema("--primary");
 
           const bg = meses.map((m) => {
@@ -2333,7 +2332,7 @@
           });
           const borda = meses.map((m) => {
             if (m === mesSelecionadoRelatorio) return corSel;
-            return m < atual ? corPago : corPagar;
+            return corPago;
           });
 
           aplicarTemaGraficos();
@@ -2359,11 +2358,28 @@
                 }
               },
               plugins: {
-                legend: { display: false },
+                legend: {
+                  display: true,
+                  position: "bottom",
+                  onClick: () => {},
+                  labels: {
+                    boxWidth: 12,
+                    boxHeight: 12,
+                    font: { size: 11 },
+                    generateLabels: () => [
+                      { text: "Pago", fillStyle: corPago, strokeStyle: corPago, lineWidth: 1.5 },
+                      { text: "A pagar", fillStyle: "transparent", strokeStyle: corPago, lineWidth: 1.5 },
+                      { text: "Mês escolhido", fillStyle: corSel, strokeStyle: corSel, lineWidth: 1.5 },
+                    ],
+                  },
+                },
                 tooltip: { callbacks: { label: (it) => formatarMoeda(it.raw) } },
               },
               scales: {
-                y: { ticks: { callback: (v) => "R$ " + v } },
+                x: {
+                  ticks: { autoSkip: false, maxRotation: 0, minRotation: 0, font: { size: 10 } },
+                },
+                y: { ticks: { callback: (v) => "R$ " + v, font: { size: 10 } } },
               },
             },
           });

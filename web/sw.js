@@ -1,4 +1,4 @@
-const CACHE_NAME = 'dividas-v7'; // Versão atualizada para forçar refresh
+const CACHE_NAME = 'dividas-v8'; // Versão atualizada para forçar refresh
 
 self.addEventListener('install', event => {
   self.skipWaiting();

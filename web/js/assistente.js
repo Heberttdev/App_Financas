@@ -157,13 +157,10 @@
     );
   }
 
-  // parcela mensal media pendente (proxima de cada divida)
+  // parcelas do mes atual (pagas e pendentes): o que o mes compromete da renda
   function parcelaMensalTotal() {
-    const _div3 = window.getDividas ? window.getDividas() : [];
-    return _div3.reduce((s, d) => {
-      const p = (d.parcelas || []).find((p) => p.status === "pendente");
-      return s + (p ? p.valor || 0 : 0);
-    }, 0);
+    const hoje = new Date();
+    return parcelasDoMes(hoje.getFullYear(), hoje.getMonth());
   }
 
   function saldoDisponivel() {
@@ -201,13 +198,17 @@
     return max;
   }
 
-  // soma das parcelas pendentes que vencem em um mes especifico
+  // soma das parcelas que vencem em um mes especifico. No mes atual (ou passado)
+  // entram tambem as ja pagas, pois sairam da renda deste mes; nos futuros, so as pendentes.
   function parcelasDoMes(ano, mes) {
     const divs = window.getDividas ? window.getDividas() : [];
+    const hoje = new Date();
+    const incluirPagas = ano * 12 + mes <= hoje.getFullYear() * 12 + hoje.getMonth();
     let soma = 0;
     divs.forEach((d) =>
       (d.parcelas || []).forEach((p) => {
-        if (p.status !== "pendente" || !p.vencimento) return;
+        if (!p.vencimento) return;
+        if (p.status !== "pendente" && !(incluirPagas && p.status === "pago")) return;
         const pv = new Date(p.vencimento + "T00:00:00");
         if (pv.getFullYear() === ano && pv.getMonth() === mes) soma += p.valor || 0;
       }),
@@ -317,16 +318,21 @@
     const fim = ultimaParcelaPendente();
     if (!fim) { el.innerHTML = ""; return; }
 
-    const meses = calendarioProximosMeses().filter((m) => m.parcelas > 0);
+    const todosMeses = calendarioProximosMeses().filter((m) => m.parcelas > 0);
+    const meses = todosMeses.slice(0, 3);
+    const restantes = todosMeses.length - meses.length;
     const linha = meses
       .map(
         (m) => `
-      <div style="flex:1;min-width:72px;text-align:center;padding:8px 4px;background:var(--bg-card);border:1px solid var(--border-light);border-radius:10px">
+      <div style="flex:1;min-width:0;text-align:center;padding:8px 4px;background:var(--bg-card);border:1px solid var(--border-light);border-radius:10px">
         <div style="font-size:11px;color:var(--text-secondary);text-transform:capitalize">${m.data.toLocaleDateString("pt-BR", { month: "short" })}</div>
         <div style="font-size:13px;font-weight:700">${formatarMoeda(m.parcelas)}</div>
       </div>`,
       )
-      .join("");
+      .join("") +
+      (restantes > 0
+        ? `<div style="flex:0 0 auto;display:flex;align-items:center;justify-content:center;padding:8px 10px;background:var(--bg-card);border:1px solid var(--border-light);border-radius:10px;font-size:13px;font-weight:700;color:var(--text-secondary)" title="Mais ${restantes} ${restantes === 1 ? "mês" : "meses"} com parcelas">+${restantes}</div>`
+        : "");
 
     el.innerHTML = `
       <div class="card" style="padding:16px">
@@ -334,7 +340,7 @@
           <i data-lucide="calendar-check" class="icon icon-sm" style="color:var(--success)"></i>
           Suas parcelas terminam em ${fim.toLocaleDateString("pt-BR", { day: "2-digit", month: "long" })}
         </div>
-        <div style="display:flex;gap:8px;overflow-x:auto">${linha}</div>
+        <div style="display:flex;gap:8px">${linha}</div>
       </div>`;
     if (window.lucide) lucide.createIcons();
   }
@@ -395,7 +401,11 @@
       <div class="indicador-card">
         <div class="indicador-label">Despesas fixas</div>
         <div class="indicador-valor" style="color:var(--warning)">${formatarMoeda(desp)}</div>
-        <div class="indicador-sub">${(orcamento.despesas || []).length} categorias</div>
+        <div class="indicador-sub">${(() => {
+          const n = (orcamento.despesas || []).filter((d) => !despesaDuplicada(d)).length;
+          if (n === 0) return (orcamento.despesas || []).length ? "Nenhuma fora das dívidas" : "Nenhuma cadastrada";
+          return `${n} ${n === 1 ? "categoria" : "categorias"}`;
+        })()}</div>
       </div>
 
       <div class="indicador-card">
@@ -436,7 +446,7 @@
       acoes.push({ icone: "scissors", titulo: "Reequilibre o orçamento", texto: `Faltam ${formatarMoeda(Math.abs(saldo))} para fechar o mês. Pause gastos não essenciais e revise despesas fixas.`, urgente: true });
     } else if (saldo > 0 && metaReserva > reservaAtual) {
       const aporte = Math.min(saldo, Math.max(50, (metaReserva - reservaAtual) / 6));
-      acoes.push({ icone: "shield-check", titulo: "Faça um aporte para a reserva", texto: `Separe cerca de ${formatarMoeda(aporte)} este mês antes de buscar maior rentabilidade.`, urgente: false });
+      acoes.push({ icone: "shield-check", titulo: "Faça um aporte para a reserva", texto: `Separe cerca de ${formatarMoeda(aporte)} este mês para a reserva.`, urgente: false });
     }
     if (saldo > 0 && !atrasadas.length && metaReserva <= reservaAtual) {
       acoes.push({ icone: "trending-up", titulo: "Faça o dinheiro parado trabalhar", texto: "Depois da reserva e das dívidas caras, compare opções de baixo risco, liquidez e rentabilidade líquida.", urgente: false });
@@ -480,7 +490,7 @@
       <div style="margin-top:10px;font-size:13px;color:var(--text-secondary)">
         Meta: <strong style="color:var(--text)">${formatarMoeda(meta)}</strong>
         ${falta > 0 ? ` &bull; Faltam <strong style="color:var(--danger)">${formatarMoeda(falta)}</strong>` : " &bull; <strong style='color:var(--success)'>Meta atingida!</strong>"}
-        ${meses ? ` &bull; Previsao: <strong>${meses} meses</strong>` : ""}
+        ${meses ? ` &bull; Previsão: <strong>${meses} meses</strong>` : ""}
       </div>
     `;
   }
@@ -601,7 +611,7 @@
       canvas.setAttribute("role", "img");
       canvas.setAttribute(
         "aria-label",
-        `Quanto você pode juntar nos próximos ${dados.length} meses. ${resumo}.`,
+        `Se guardar toda a sobra, nos próximos ${dados.length} meses. ${resumo}.`,
       );
     }
     if (window.aplicarTemaGraficos) window.aplicarTemaGraficos();
@@ -692,7 +702,7 @@
     el.innerHTML = meses
       .map((m) => {
         const sobraCor = m.sobra >= 0 ? "var(--success)" : "var(--danger)";
-        const nomeMesCal = m.data.toLocaleDateString("pt-BR", { month: "long", year: "2-digit" });
+        const nomeMesCal = `${m.data.toLocaleDateString("pt-BR", { month: "long" })} ${m.data.getFullYear()}`;
         return `
         <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 0;border-bottom:1px solid var(--border-light)">
           <div style="text-transform:capitalize;font-weight:700;font-size:14px;min-width:92px">${nomeMesCal}</div>
@@ -945,7 +955,7 @@
         ${normais.map(linhaNormal).join("")}
         ${duplicadas.length ? `
           <details style="margin-top:8px">
-            <summary style="cursor:pointer;font-size:13px;color:var(--text-secondary);padding:6px 0">${duplicadas.length} despesa(s) já contada(s) nas dívidas</summary>
+            <summary style="cursor:pointer;font-size:13px;color:var(--text-secondary);padding:6px 0">${duplicadas.length} ${duplicadas.length === 1 ? "despesa já contada" : "despesas já contadas"} nas dívidas</summary>
             ${duplicadas.map(linhaDup).join("")}
           </details>` : ""}
       </div>`;

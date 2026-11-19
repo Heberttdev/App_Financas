@@ -135,3 +135,28 @@ Primeiro as contas, depois o texto, por último o layout. Os três primeiros ite
 11. **Chat.** `enviarPerguntaChip` e o HTML das perguntas em `index.html`: perguntas geradas dos dados; aviso de dados sob o campo; uma saudação só.
 
 Depois do item 2, conferir na Visão Geral: a sobra de novembro deve mostrar R$ 823,68 e o orçamento do dia R$ 20,79 (no dia 1º).
+
+## Conferência de 19/11/2026
+
+Sete dos onze itens estão prontos. O que falta se resume a um erro: o mês atual só conta as parcelas pendentes, e as de novembro já foram todas pagas. Conferido no app publicado em 19/11/2026, em tela de celular, só navegando (nada foi pago ou editado).
+
+| Nº | Item | Status | O que vi |
+| --- | --- | --- | --- |
+| 1 | Prazo real das parcelas | Feito | "Suas parcelas terminam em 10 de abril"; "9 meses" saiu |
+| 2 | Vincular a Escola | Feito | Despesas fixas R$ 0,00; "5 despesa(s) já contada(s) nas dívidas" |
+| 3 | Eixo do gráfico | Feito | R$ 2.000 a R$ 10.000, sem rótulos repetidos |
+| 4 | Projeção por mês | Ajustar | Calcula mês a mês, mas novembro entra como R$ 2.156,00 de sobra (ajuste A) |
+| 5 | Tirar o "Gastado" | Feito | Não aparece mais na tela nem no código |
+| 6 | Limite do controle | Feito | "E se eu guardar mais?" vai de R$ 0 a R$ 300,00 |
+| 7 | Textos dos insights | Ajustar | "Para você", sem "até 20%" e sem "renegociar ou eliminar"; falta o acento em "Previsao" (`assistente.js` 483) |
+| 8 | Nova Visão Geral | Ajustar | Layout em frases no ar; sobra de novembro usa parcelas de dezembro (ajuste A) e os meses não cabem (ajuste C) |
+| 9 | Orçamento com resumo ao vivo | Feito | Resumo no topo, duplicatas agrupadas, sugestão de meta, lembretes fora |
+| 10 | Próximos meses | Ajustar | Calendário no ar; novembro aparece "sem parcelas" e os meses como "Novembro De 26" |
+| 11 | Chat | Feito | Perguntas a partir dos dados, uma saudação, aviso de dados, `#chatMensagens` como log |
+
+Ajustes que faltam:
+
+- **A · Mês atual sem as parcelas pagas.** A Visão Geral diz "Em novembro sobram R$ 299,67" usando dezembro (R$ 1.856,33); Próximos meses diz "Novembro sem parcelas, sobra R$ 2.156,00". Pelos meus cálculos, a sobra real é 2.156,00 − 1.617,52 = R$ 538,48. Contar as parcelas pagas do mês, ou passar a mostrar o mês seguinte quando o atual estiver quitado. Isso também corrige o "até R$ 8,31 por dia" e o início da projeção.
+- **B · Título da projeção.** "Quanto você pode juntar" supõe que toda a sobra vira poupança. Dizer isso no título: "Se guardar toda a sobra".
+- **C · Meses em "Suas parcelas terminam".** No celular "R$ 1.856,33" fica cortado e aparece uma barra de rolagem branca no tema escuro. Mostrar 3 meses e "+2", ou quebrar em duas linhas.
+- **D · Textos.** "Novembro De 26" → "Novembro 2026"; "Previsao" → "Previsão"; "5 despesa(s) já contada(s)" → "5 despesas já contadas"; "Despesas fixas R$ 0,00 · 5 categorias" → "Nenhuma fora das dívidas"; o próximo passo da reserva ainda diz "antes de buscar maior rentabilidade".

@@ -98,3 +98,24 @@ Primeiro o que corrige números, depois o que remove, por último o que é novo.
 8. **Gráfico mês a mês.** Novo `canvas` logo abaixo do resumo. Agrupar parcelas por mês: pagas pelo mês de `pagoEm` (ou `vencimento` se faltar), pendentes pelo mês de `vencimento`. Toque numa barra chama o seletor de mês.
 
 Depois do item 1, conferir com o filtro em novembro: a soma das fatias deve ser R$ 1.332,32.
+
+## Conferência de 19/11/2026
+
+Sete dos oito itens estão no ar e funcionando; falta acabamento no gráfico mês a mês. Conferido no app publicado em Nov 19, 2026, em tela de celular, só navegando (nada foi pago ou editado). A tela caiu de 6,7 para cerca de 2,5 rolagens.
+
+| Nº | Item | Status | O que vi |
+| --- | --- | --- | --- |
+| 1 | Pizza obedece ao filtro | Feito | Categorias somam o mesmo que o resumo: novembro R$ 1.617,52, dezembro R$ 1.856,33, janeiro R$ 534,47, Tudo R$ 11.435,46 |
+| 2 | Tirar o gráfico escondido | Feito | `canvas#graficoDividas` não existe mais |
+| 3 | Tirar o Detalhamento | Feito | Os cartões saíram; no lugar, "Ver todas em Dívidas" |
+| 4 | Tirar Próximo foco | Feito | `#relatorioFoco` não existe mais |
+| 5 | Juntar resumo e progresso | Feito | "R$ 1.617,52 em 15 parcelas · R$ 1.617,52 pago · R$ 0,00 falta · 15 de 15 pagas" |
+| 6 | Seletor de mês com setas | Feito | Setas, "Tudo" e volta ao mês atual funcionam; botões com `aria-label` |
+| 7 | Pizza vira barras | Feito | 5 categorias com valor e %; ranking virou "Maiores contas de novembro" aberto |
+| 8 | Gráfico mês a mês | Ajustar | Dados certos e o toque numa barra troca o mês; faltam os ajustes abaixo |
+
+Ajustes que faltam no item 8:
+
+- **Legenda.** O gráfico usa verde (pago), azul (mês escolhido) e contorno vermelho (a pagar), mas `legend.display` está desligado.
+- **Cor dos meses futuros.** O contorno vermelho (`#EE7D74`) parece alerta; o proposto era contorno na mesma cor do pago.
+- **Rótulos de mês.** No celular aparecem só meses alternados e inclinados (jun, ago, out…). Usar `autoSkip: false`, `maxRotation: 0` e fonte menor.
